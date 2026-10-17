@@ -33,9 +33,16 @@ def health():
     return {"ok": True, "service": "citylens", "time": time.time()}
 
 
+BUILD = str(int(time.time()))
+
+
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    """Serve the UI with versioned asset links so browsers and proxies never show a stale build."""
+    with open(os.path.join(STATIC_DIR, "index.html"), encoding="utf-8") as f:
+        html = f.read().replace('href="styles.css"', f'href="styles.css?v={BUILD}"').replace('src="app.js"', f'src="app.js?v={BUILD}"')
+    return Response(content=html, media_type="text/html",
+                    headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
 
 @app.get("/{fname}.{ext}")
@@ -46,7 +53,7 @@ def static_file(fname: str, ext: str):
     path = os.path.join(STATIC_DIR, f"{fname}.{ext}")
     if not os.path.isfile(path):
         raise HTTPException(404)
-    return FileResponse(path, headers={"Cache-Control": "no-cache"})
+    return FileResponse(path, headers={"Cache-Control": "no-cache, must-revalidate"})
 
 
 @app.get("/api/rules")
