@@ -8,11 +8,12 @@ A city has hundreds of traffic cameras and a handful of people watching them. Ci
 
 | Screen | What an operator gets | How |
 |---|---|---|
-| **Overview** | Network map, incident feed, camera wall with load vs each camera's own normal | VastDB index + CityLens incidents |
-| **Incidents** | Rules run across every street camera; each candidate is **verified by Cosmos Reason** with a yes/no verdict and a reason; confirmed incidents are stored | hybrid search → Cosmos Reason → VastDB |
-| **Investigate** | Ask questions, get answers with playable clip evidence and a visible tool trace | GPT-OSS 120B on W&B Inference, traced in Weave |
-| **Measure** | Vehicles and people per clip against the camera's normal, object mix, camera comparison, busiest and quietest minute | YOLO11 counts stored with every clip |
-| **System** | The pipeline, data-layer health, model endpoints, agent | live checks |
+| **Overview** | Network map with camera pins, live 311 layer, verified incident feed, camera wall with load vs each camera's own normal | VastDB index + CityLens incidents + city open data |
+| **City view** | One city: cameras, confirmed incidents, residents' 311 requests and the permit register on one map; **construction triage** grades every camera-confirmed work zone against active permits (on file · possible · no permit) | Toronto RoDARS, DataSF, NYC Open Data |
+| **Incidents** | Rules run across every street camera; each candidate is **verified by Cosmos Reason** with a verdict and a reason; 5 s moment or 30 s context; YOLO **bounding boxes** overlaid on the clip; one-click **311 case**; **Re-check** | hybrid search → Cosmos Reason → VastDB |
+| **Assistant** | Floating chat: ask the cameras, answers cite playable clips, every tool call shown inline and traced in Weave | GPT-OSS 120B on W&B Inference |
+| **Cameras** | Per camera: vehicles and people vs its own normal, object mix, busiest and quietest minute, its incidents | YOLO11 counts stored with every clip |
+| **How it's built** | Architecture diagram, data-layer health, model endpoints, agent | live checks |
 
 ### Rules
 
@@ -24,6 +25,8 @@ Each rule is a saved natural-language query over the clip captions plus a pointe
 - Congestion or stopped traffic
 - Work zone, cones or barriers (also watched from the Toronto dashcam drives)
 - Lane closed by street work (also from the dashcam)
+- Dumped garbage or debris on the street
+- Person lying on the ground
 
 Semantic search alone gives "probably". The verification step is what turns a similarity score into an incident an operator can act on. In the first sweep across 8 cameras, 15 incidents were confirmed and 89 lookalikes were dismissed with reasons such as *"the pedestrian is using the marked crosswalk and has the right of way"*.
 
@@ -44,7 +47,9 @@ Street cameras ─► VAST S3 ─► Segmenter ─► YOLO11 ─► Cosmos Reaso
                                                           └── tools: search_clips · list_incidents · camera_stats · summarize_video
 ```
 
-Everything CityLens produces lands next to the index in the same VAST database. The agent never opens a video file; it only queries data.
+Everything CityLens produces lands next to the index in the same VAST database: `citylens.incidents` (rule, verdict, reason, confidence) and `citylens.actions` (311 cases). The agent never opens a video file; it only queries data.
+
+City context comes from open data, cached and refreshed in the background: 311 requests (DataSF, NYC Open Data) and permit registers (Toronto RoDARS road restrictions, San Francisco street-use permits). Camera positions are illustrative, the archive carries no coordinates; a deployment registers them at install, and the permit match then uses the restriction's line geometry.
 
 ### Sponsor stack
 
@@ -69,6 +74,8 @@ app/
   store.py     VastDB: index reads, measurement, incident table
   agent.py     tool-using agent on W&B Inference with Weave tracing
   thumbs.py    poster frames for clips
+  city.py      311 open-data feeds
+  permits.py   permit registers and construction triage
   static/      the operator UI (no build step)
 deploy/
   k8s-deploy.sh   on-cluster deployment without a registry (ConfigMaps + Secret + Ingress at /app)

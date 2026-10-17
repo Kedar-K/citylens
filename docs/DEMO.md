@@ -11,14 +11,14 @@ Point at the KPI strip: 8 street cameras, 295 minutes indexed, 3,500 clips descr
 **0:50 – 1:35 · Incidents (the core)**
 Click Incidents. "Every rule is a question we ask the archive: a vehicle standing in a live lane, a pedestrian outside the crosswalk, a cyclist squeezed by a bus. Search gives us candidates. Then Cosmos Reason watches each clip and gives a verdict with a reason." Play one confirmed card: read the Cosmos sentence aloud. Then show one dismissed card: "it dismissed this one because the pedestrian was in the crosswalk with the right of way. That is the difference between a detector and something a city can run: the false alarms don't reach the operator." Press Watch now on one camera so the judges see the progress bar and Cosmos verifying live. Mention every verdict lands in our own VastDB table next to the index.
 
-**1:35 – 2:10 · Investigate**
-Click Investigate. Ask: "Anything blocking a lane in San Francisco?" Point at the trace panel while it runs: "the agent never opens a video; it queries VAST: incidents, captions, detections. Every call is traced in Weave." Click the clip reference in the answer; it plays. Ask one more: "How busy is NYC Street 1 compared to its normal?"
+**1:35 – 2:10 · City view and permit triage**
+On the Overview map click "Toronto →". "Click a city and you get the whole city: cameras, what residents report, and the permit register, 1,700 active restrictions live from Toronto's RoDARS. The dashcam confirmed 12 work zones. Each one is checked against permits: on file, possible match, or no permit. That's how a city finds unpermitted work." Press Boxes on one card so the judges see YOLO's boxes on the clip.
 
-**2:10 – 2:35 · Measure**
-Click Measure. "Counts come from the YOLO detections already stored with every clip. This line is the rolling minute, the dashed line is this camera's own normal, and this bar chart ranks every camera against its normal right now." Click the busiest-minute clip.
+**2:10 – 2:35 · Assistant**
+Click "Ask the cameras". Ask: "Where did the Toronto dashcam see street work?" Open the tool-call line: "the agent never opens a video; it queries VAST. Every call is traced in Weave." The clips play inline.
 
-**2:35 – 2:55 · System and the stack**
-Click System. One sentence per box: VAST holds everything, video, vectors, captions, detections and our incidents, in one place. Cosmos describes and verifies. YOLO counts. The agent runs on W&B Inference and is traced in Weave. GPUs on CoreWeave.
+**2:35 – 2:55 · How it's built**
+Click System. Point at the two bands of the diagram: "Grey is the shared stack, it runs on every clip. Crimson is what we built today, it runs on what matters. Everything we add is a new table or a new question, never a new pipeline."
 
 **2:55 – 3:00 · Close**
 "Cameras the city already owns. Incidents it can trust. Questions it can ask. CityLens."
