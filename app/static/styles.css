@@ -233,3 +233,5 @@ button{font:inherit}
 .side .foot{margin-top:12px}
 .collapsed .side .collapse{left:auto;bottom:auto;justify-content:center;padding:10px 0}.collapsed .side .collapse span{display:none}.collapsed .side .collapse svg{transform:rotate(180deg)}
 .collapsed .brand{padding:0 0 20px}
+.leaflet-tooltip.ctip{background:var(--panel2);color:var(--text);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;font:13px var(--ui);box-shadow:0 10px 30px rgba(0,0,0,.4)}.leaflet-tooltip.ctip::before{border-top-color:var(--panel2)}
+.leaflet-interactive{cursor:pointer}

@@ -67,7 +67,8 @@ async function loadOverview() {
     const col = c.status === 'incident' ? '#ff4150' : '#2dd4bf';
     const m = L.circleMarker([c.lat, c.lon], { radius: 9 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 1.5, fillColor: col, fillOpacity: .12 }).addTo(map);
     
-    m.bindPopup(`<b>${c.name}</b><br>${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.minutes} min indexed<br>${c.incidents} confirmed incident${c.incidents === 1 ? '' : 's'}<br><a href="#" onclick="openCity('${c.location}');return false">Open city view →</a>`);
+    m.bindTooltip(`<b>${c.name}</b> · ${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.incidents} confirmed<br><span style="color:#8b97a8">Click to open the city view</span>`, { direction: 'top', offset: [0, -10], className: 'ctip' });
+    m.on('click', () => openCity(c.location));
     L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#8a8a95">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }) }).on('click', () => openCity(c.location)).addTo(map);
     pts.push([c.lat, c.lon]);
   }
@@ -80,7 +81,7 @@ async function loadOverview() {
     pts.push([c.lat, c.lon]);
   }
   if (pts.length) map.fitBounds(pts, { padding: [50, 90], maxZoom: 6 });
-  $('#map-sub').innerHTML = OV.cities.map(c => `<a href="#" onclick="openCity('${c.location}');return false" style="margin-left:10px;font-weight:600">${c.name} →</a>`).join('') + ` <span style="margin-left:10px">· camera placement illustrative</span>`;
+  $('#map-sub').textContent = `${OV.cities.length} cities · ${OV.cameras.length} cameras · click a city to open it`;
   // feed
   $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t"><i class="rule-dot" style="color:${RULECOL[i.rule_id] || '#8a8a95'}"></i>${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
     : '<div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div>';
