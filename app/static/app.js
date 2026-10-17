@@ -16,12 +16,12 @@ const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.ad
 Chart.defaults.color = '#8a8a95'; Chart.defaults.font.family = '"Nunito Sans", system-ui, sans-serif'; Chart.defaults.borderColor = 'rgba(255,255,255,.07)';
 
 /* navigation */
-const views = ['overview', 'incidents', 'investigate', 'measure', 'system'];
+const views = ['overview', 'incidents', 'measure', 'system'];
 const loaded = {};
 function show(v) {
   document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   views.forEach(x => $('#v-' + x).hidden = x !== v);
-  if (!loaded[v]) { loaded[v] = true; ({ overview: loadOverview, incidents: loadIncidents, investigate: loadInvestigate, measure: loadMeasure, system: loadSystem })[v](); }
+  if (!loaded[v]) { loaded[v] = true; ({ overview: loadOverview, incidents: loadIncidents, measure: loadMeasure, system: loadSystem })[v](); }
   if (v === 'overview' && map) setTimeout(() => map.invalidateSize(), 50);
   history.replaceState(null, '', '#' + v);
 }
@@ -119,26 +119,32 @@ $('#i-run').onclick = async () => {
   b.disabled = false;
 };
 
-/* ---------- investigate ---------- */
-const SUGG = ['Anything blocking a lane in San Francisco?', 'Where did the Toronto dashcam see street work or lane closures?', 'Were there pedestrians crossing outside the crosswalk on SF Street 5?', 'How busy is NYC Street 1 compared to its normal?', 'Show me cyclists close to buses', 'Which camera has the most trucks?', 'Summarize the incidents confirmed so far'];
+/* ---------- floating assistant ---------- */
+const SUGG = ['Anything blocking a lane in San Francisco?', 'Where did the Toronto dashcam see street work?', 'Pedestrians outside the crosswalk on SF Street 5?', 'How busy is NYC Street 1 vs its normal?', 'Cyclists close to buses', 'Summarize the confirmed incidents'];
 const hist = [];
-function loadInvestigate() { $('#sugg').innerHTML = SUGG.map(s => `<button>${s}</button>`).join(''); document.querySelectorAll('#sugg button').forEach(b => b.onclick = () => { $('#q').value = b.textContent; ask(); }); }
-function evidCard(src, cap) { return `<div class="inc"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(cap || src.split('/').pop())}</div></div></div>`; }
+const cw = $('#chatw');
+function openChat() { cw.hidden = false; $('#fab').hidden = true; if (!$('#sugg').children.length) $('#sugg').innerHTML = SUGG.map(s => `<button>${s}</button>`).join(''); document.querySelectorAll('#sugg button').forEach(b => b.onclick = () => { $('#q').value = b.textContent; ask(); }); setTimeout(() => $('#q').focus(), 50); }
+function closeChat() { cw.hidden = true; $('#fab').hidden = false; }
+$('#fab').onclick = openChat; $('#cw-close').onclick = closeChat;
+$('#cw-expand').onclick = () => cw.classList.toggle('big');
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !cw.hidden) closeChat(); if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); cw.hidden ? openChat() : closeChat(); } });
+function clipCard(src, cap) { return `<div class="inc"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(cap || '')}</div></div></div>`; }
+const scrollChat = () => { const m = $('#msgs'); m.scrollTop = m.scrollHeight; };
 async function ask() {
-  const q = $('#q').value.trim(); if (!q) return; $('#q').value = '';
-  $('#msgs').insertAdjacentHTML('beforeend', `<div class="msg u">${esc(q)}</div><div class="msg a think" id="pending">Querying the data layer…</div>`); $('#msgs').scrollTop = 1e9;
+  const q = $('#q').value.trim(); if (!q) return; $('#q').value = ''; $('#sugg').innerHTML = '';
+  $('#msgs').insertAdjacentHTML('beforeend', `<div class="msg u">${esc(q)}</div><div class="msg a think" id="pending"><i></i>Querying the data layer…</div>`); scrollChat();
   $('#ask').disabled = true;
   try {
     const r = await post('ask', { question: q, history: hist.slice(-6) });
     const refs = []; let html = esc(r.answer || '').replace(/\*\*/g, '');
     html = html.replace(/[\[【]clip:([^\]】]+)[\]】]/g, (m, s) => { refs.push(s); return `<span class="clipref" data-s="${esc(s)}">▶ clip ${refs.length}</span>`; });
-    $('#pending').outerHTML = `<div class="msg a">${html}<span class="meta">${r.model} · ${r.seconds}s${r.weave_url ? ' · <a href="' + r.weave_url + '" target="_blank" rel="noopener">open trace in Weave</a>' : ''}</span></div>`;
+    const steps = (r.trace || []);
+    const stepsHtml = steps.length ? `<details class="steps"><summary>${steps.length} tool call${steps.length > 1 ? 's' : ''} · ${r.seconds}s${r.weave_url ? ' · <a href="' + r.weave_url + '" target="_blank" rel="noopener">Weave</a>' : ''}</summary>${steps.map(t => `<div class="tstep"><code>${t.tool}</code> <span class="a">${esc(JSON.stringify(t.args))}</span> · ${t.seconds}s<div class="r">${esc((t.result_preview || '').slice(0, 200))}…</div></div>`).join('')}</details>` : '';
+    $('#pending').outerHTML = stepsHtml + `<div class="msg a">${html}<span class="meta">${r.model}</span></div>` + (refs.length ? `<div class="clips">${refs.map((s, i) => clipCard(s, 'Clip ' + (i + 1))).join('')}</div>` : '');
     hist.push({ role: 'user', content: q }, { role: 'assistant', content: r.answer || '' });
-    $('#trace').innerHTML = '<h4>Agent trace</h4>' + ((r.trace || []).map(t => `<div class="tstep"><code>${t.tool}</code> <span class="a">${esc(JSON.stringify(t.args))}</span> · ${t.seconds}s<div class="r">${esc((t.result_preview || '').slice(0, 220))}…</div></div>`).join('') || '<div class="empty">No tools were needed.</div>');
-    $('#evid').innerHTML = refs.map((s, i) => evidCard(s, 'Clip ' + (i + 1))).join('');
-    document.querySelectorAll('.clipref').forEach(el => el.onclick = () => { $('#evid').innerHTML = evidCard(el.dataset.s, el.textContent); $('#evid').scrollIntoView({ behavior: 'smooth' }); });
+    document.querySelectorAll('.clipref').forEach(el => el.onclick = () => { const v = [...document.querySelectorAll('.clips video')].find(x => x.src.includes(encodeURIComponent(el.dataset.s))); if (v) { v.scrollIntoView({ behavior: 'smooth', block: 'center' }); v.play(); } });
   } catch (e) { $('#pending').textContent = 'Error: ' + e.message; }
-  $('#ask').disabled = false; $('#msgs').scrollTop = 1e9;
+  $('#ask').disabled = false; scrollChat();
 }
 $('#ask').onclick = ask; $('#q').addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
 
