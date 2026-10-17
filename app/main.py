@@ -2,8 +2,10 @@
 import concurrent.futures as cf
 import os
 import sys
+import threading
 import time
 import urllib.request
+import uuid
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -28,6 +30,21 @@ vss = VSS()
 store = Store()
 agent = traced(Agent(vss, store))
 _detect_jobs = {}
+
+
+def _warm():
+    """Keep the slow external feeds (311, permit registers) warm so city views open instantly."""
+    while True:
+        for loc in ("san_francisco", "new_york", "toronto"):
+            try:
+                city_data(loc)
+                permit_data(loc)
+            except Exception as e:
+                print("warm", loc, e)
+        time.sleep(240)
+
+
+threading.Thread(target=_warm, daemon=True).start()
 
 
 @app.get("/health")
