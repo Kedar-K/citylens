@@ -13,7 +13,7 @@ const city = l => CITY[l] || l || '';
 const mmss = s => s == null ? '' : Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
 const ago = iso => { if (!iso) return ''; const d = (Date.now() - Date.parse(iso)) / 1000; return d < 90 ? 'just now' : d < 3600 ? Math.round(d / 60) + ' min ago' : d < 86400 ? Math.round(d / 3600) + ' h ago' : Math.round(d / 86400) + ' d ago'; };
 const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 3500); };
-Chart.defaults.color = '#8a8a95'; Chart.defaults.font.family = 'Geist, Inter, system-ui, sans-serif'; Chart.defaults.borderColor = 'rgba(255,255,255,.07)';
+Chart.defaults.color = '#8a8a95'; Chart.defaults.font.family = '"Nunito Sans", system-ui, sans-serif'; Chart.defaults.borderColor = 'rgba(255,255,255,.07)';
 
 /* navigation */
 const views = ['overview', 'incidents', 'investigate', 'measure', 'system'];
