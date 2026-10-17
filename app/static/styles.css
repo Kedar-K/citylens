@@ -207,3 +207,4 @@ button{font:inherit}
 .sbaxis .pin:hover{transform:translateX(-50%) scale(1.3)}
 .sbaxis .tick{position:absolute;top:14px;font-size:10.5px;color:var(--muted);transform:translateX(-50%)}
 .sbaxis .line{position:absolute;left:0;right:0;top:5px;height:2px;background:var(--panel3)}
+.sbaxis .tick:first-child+ .tick{transform:none}.sbaxis .tick:last-of-type{transform:translateX(-100%);white-space:nowrap}.sbaxis .tick{white-space:nowrap}
