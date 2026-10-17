@@ -62,25 +62,29 @@ async function loadOverview() {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
   }
   map.eachLayer(l => { if (l instanceof L.CircleMarker || l instanceof L.Marker || l instanceof L.LayerGroup) map.removeLayer(l); });
-  const pts = [];
+  const pts = []; cityLayer = L.layerGroup().addTo(map);
   for (const c of OV.cities) {
     const col = c.status === 'incident' ? '#ff4150' : '#2dd4bf';
-    const m = L.circleMarker([c.lat, c.lon], { radius: 9 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 1.5, fillColor: col, fillOpacity: .12 }).addTo(map);
+    const m = L.circleMarker([c.lat, c.lon], { radius: 9 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 1.5, fillColor: col, fillOpacity: .12 }).addTo(cityLayer);
     
     m.bindTooltip(`<b>${c.name}</b> · ${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.incidents} confirmed<br><span style="color:#8b97a8">Click to open the city view</span>`, { direction: 'top', offset: [0, -10], className: 'ctip' });
     m.on('click', () => openCity(c.location));
-    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#8a8a95">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }) }).on('click', () => openCity(c.location)).addTo(map);
+    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#8a8a95">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }) }).on('click', () => openCity(c.location)).addTo(cityLayer);
     pts.push([c.lat, c.lon]);
   }
   // camera pins (illustrative placement, see store.CAMERA_POS)
-  camLayer = L.layerGroup().addTo(map);
+  camLayer = L.layerGroup();
   for (const c of OV.cameras.filter(c => c.lat)) {
     const col = c.status === 'incident' ? '#ff4150' : c.status === 'busy' ? '#f2a93b' : '#2dd4bf';
     const m = L.circleMarker([c.lat, c.lon], { radius: 6, color: '#09090b', weight: 2, fillColor: col, fillOpacity: 1 }).addTo(camLayer);
     m.bindPopup(() => camPopup(c, nearby311(c)), { minWidth: 260 });
     pts.push([c.lat, c.lon]);
   }
+  // zoomed out: cities are the targets; zoomed into a city: camera pins take over
+  const syncLayers = () => { const z = map.getZoom(); if (z >= 8) { if (!map.hasLayer(camLayer)) camLayer.addTo(map); cityLayer.eachLayer(l => l.setStyle && l.setStyle({ opacity: .25, fillOpacity: .04 })); } else { if (map.hasLayer(camLayer)) map.removeLayer(camLayer); cityLayer.eachLayer(l => l.setStyle && l.setStyle({ opacity: 1, fillOpacity: .12 })); } };
+  map.off('zoomend'); map.on('zoomend', syncLayers);
   if (pts.length) map.fitBounds(pts, { padding: [50, 90], maxZoom: 6 });
+  syncLayers();
   $('#map-sub').textContent = `${OV.cities.length} cities · ${OV.cameras.length} cameras · click a city to open it`;
   // feed
   $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t"><i class="rule-dot" style="color:${RULECOL[i.rule_id] || '#8a8a95'}"></i>${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
@@ -94,7 +98,7 @@ async function loadOverview() {
   document.querySelectorAll('.cam').forEach(el => el.onclick = () => { show('measure'); $('#m-cam').value = el.dataset.cam; $('#m-run').click(); });
 }
 
-let layer311 = null, camLayer = null, CITYDATA = {};
+let layer311 = null, camLayer = null, cityLayer = null, CITYDATA = {};
 function pointPopup(kind, col, title, sub, meta) {
   return `<div class="pop pop2"><div class="pk2" style="color:${col}">${esc(kind)}</div><div class="pt"><b>${esc(title || '')}</b></div>${sub ? `<div class="ps">${esc(sub)}</div>` : ''}<div class="pk">${(meta || []).filter(Boolean).map(m => `<span>${esc(m)}</span>`).join('')}</div></div>`;
 }
