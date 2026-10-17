@@ -177,8 +177,13 @@ class Agent:
             r = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOLS,
                                                temperature=0, max_tokens=700)
             m = r.choices[0].message
+            if not m.tool_calls and not (m.content or "").strip() and trace:
+                # some models return an empty turn after tools; ask for the answer explicitly once
+                messages.append({"role": "user", "content": "Answer the question now in plain text for the operator, citing clips as [clip:<source>]."})
+                r = client.chat.completions.create(model=MODEL, messages=messages, temperature=0, max_tokens=700)
+                m = r.choices[0].message
             if not m.tool_calls:
-                return {"answer": m.content or "", "trace": trace, "model": MODEL,
+                return {"answer": (m.content or "").strip() or "I could not form an answer from the data I found. Try narrowing the question to a camera or city.", "trace": trace, "model": MODEL,
                         "seconds": round(time.time() - t0, 1),
                         "weave_url": f"https://wandb.ai/{WEAVE_PROJECT}/weave" if WEAVE_PROJECT else None}
             messages.append({"role": "assistant", "content": m.content or "",

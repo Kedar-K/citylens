@@ -14,7 +14,7 @@ body{margin:0;background:var(--ink);color:var(--text);font-size:14px;line-height
 body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(900px 500px at -5% -10%,rgba(229,32,47,.16),transparent 60%),radial-gradient(700px 400px at 110% 110%,rgba(229,32,47,.07),transparent 60%);z-index:0}
 a{color:var(--red2);text-decoration:none}a:hover{text-decoration:underline}
 button{font:inherit}
-.app{display:grid;grid-template-columns:248px 1fr;min-height:100vh;position:relative;z-index:1}
+.app{display:grid;grid-template-columns:248px 1fr;min-height:100vh;position:relative;z-index:1;transition:grid-template-columns .2s}.app.collapsed{grid-template-columns:76px 1fr}
 /* sidebar */
 .side{background:linear-gradient(180deg,rgba(255,255,255,.02),transparent 30%),var(--ink2);border-right:1px solid var(--line);padding:26px 18px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:12px;padding:4px 10px 26px}
@@ -192,3 +192,8 @@ button{font:inherit}
 .c311 .bar i{background:linear-gradient(90deg,#f2a93b,#ff8fa3)}
 .cam .img .chip.incident{background:rgba(229,32,47,.85);color:#fff;border-color:transparent}.cam .img .chip.busy{background:rgba(242,169,59,.9);color:#1a1a1f;border-color:transparent}.cam .img .chip.normal{background:rgba(62,207,142,.85);color:#06211d;border-color:transparent}.cam .img .chip.quiet{background:rgba(154,166,255,.9);color:#101030;border-color:transparent}
 .chip.incident::before,.chip.busy::before,.chip.normal::before,.chip.quiet::before{background:currentColor}
+/* collapsible sidebar */
+.brand{position:relative}.collapse{position:absolute;right:-4px;top:4px;width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;display:grid;place-items:center}.collapse svg{width:14px;height:14px;transition:transform .2s}.collapse:hover{color:var(--text)}
+.collapsed .side{padding:26px 12px}.collapsed .brand{padding:4px 6px 22px;justify-content:center}.collapsed .brand .bt{display:none}.collapsed .collapse{right:-8px;top:40px}.collapsed .collapse svg{transform:rotate(180deg)}
+.collapsed .nav button{justify-content:center;padding:12px 0}.collapsed .nav button span:not(.k){display:none}.collapsed .nav .k{position:absolute;margin:-26px 0 0 26px}.collapsed .nav button{position:relative}
+.collapsed .side .foot{display:none}

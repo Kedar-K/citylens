@@ -27,6 +27,9 @@ function show(v) {
   if (v !== 'city') history.replaceState(null, '', '#' + v);
 }
 document.querySelectorAll('.nav button').forEach(b => b.onclick = () => show(b.dataset.view));
+const appEl = document.querySelector('.app');
+try { if (localStorage.getItem('cl-collapsed') === '1') appEl.classList.add('collapsed'); } catch (e) {}
+$('#collapse').onclick = () => { appEl.classList.toggle('collapsed'); try { localStorage.setItem('cl-collapsed', appEl.classList.contains('collapsed') ? '1' : '0'); } catch (e) {} setTimeout(() => { map && map.invalidateSize(); cmap && cmap.invalidateSize(); [cFlow, cMix, cCmp].forEach(c => c && c.resize()); }, 250); };
 
 /* ---------- overview ---------- */
 let map, OV;
@@ -367,30 +370,42 @@ function archSvg() {
   // id, x, y, w, h, title, sub, color, built
   const N = [
     ['cams', 20, 40, 150, 58, 'Street cameras', 'SF · NYC · Toronto · Nashville', C.cw],
-    ['s3', 210, 40, 150, 58, 'VAST S3', 'clips, chunks', C.vast],
-    ['seg', 400, 40, 130, 58, 'Segmenter', '5 s clips', C.vast],
-    ['yolo', 570, 40, 140, 58, 'YOLO11', 'objects · counts · boxes', C.nv],
-    ['reason', 750, 40, 150, 58, 'Cosmos Reason', 'captions per clip', C.nv],
-    ['embed', 940, 40, 140, 58, 'Cosmos Embed1', '256-d vectors', C.nv],
-    ['vdb', 400, 170, 310, 70, 'VastDB · vss-collection', 'captions · vectors · counts · metadata', C.vast],
-    ['prompt', 750, 170, 330, 70, 'Operator prompt re-caption', 'flow · lane standing · pedestrians · work zones', C.cl, 1],
-    ['rules', 20, 310, 220, 70, 'Rules engine', '8 standing questions · hybrid search', C.cl, 1],
-    ['verify', 280, 310, 220, 70, 'Cosmos verdict', 'clip + pointed question → yes / no / why', C.cl, 1],
-    ['inc', 540, 310, 220, 70, 'VastDB · citylens.incidents', 'rule · verdict · reason · confidence', C.cl, 1],
-    ['act', 800, 310, 280, 70, 'Actions · citylens.actions', '311 case · re-check · permit triage', C.cl, 1],
-    ['c311', 20, 450, 220, 70, '311 open data', 'DataSF · NYC Open Data', C.city],
-    ['perm', 280, 450, 220, 70, 'Permit registers', 'Toronto RoDARS · SF street-use', C.city],
-    ['agent', 540, 450, 220, 70, 'Agent · GPT-OSS 120B', 'W&B Inference · traced in Weave', C.wb, 1],
-    ['ui', 800, 450, 280, 70, 'Operator workspace', 'overview · incidents · cameras · city view', C.cl, 1],
+    ['s3', 200, 40, 140, 58, 'VAST S3', 'clips, chunks', C.vast],
+    ['seg', 370, 40, 130, 58, 'Segmenter', '5 s clips', C.vast],
+    ['yolo', 530, 40, 150, 58, 'YOLO11', 'objects · counts · boxes', C.nv],
+    ['reason', 710, 40, 160, 58, 'Cosmos Reason', 'captions per clip', C.nv],
+    ['embed', 900, 40, 180, 58, 'Cosmos Embed1', '256-d vectors', C.nv],
+    ['vdb', 370, 165, 310, 66, 'VastDB · vss-collection', 'captions · vectors · counts · metadata', C.vast],
+    ['prompt', 710, 165, 370, 66, 'Operator prompt re-caption', 'flow · lane standing · pedestrians · work zones', C.cl, 1],
+    ['city', 20, 310, 150, 70, 'City open data', '311 · permit registers', C.city],
+    ['rules', 200, 310, 190, 70, 'Rules engine', '8 standing questions', C.cl, 1],
+    ['verify', 420, 310, 190, 70, 'Cosmos verdict', 'clip + question → yes / no / why', C.cl, 1],
+    ['inc', 640, 310, 190, 70, 'citylens.incidents', 'rule · verdict · reason', C.cl, 1],
+    ['act', 860, 310, 220, 70, 'citylens.actions', '311 case · permit triage', C.cl, 1],
+    ['agent', 200, 450, 410, 70, 'Agent · GPT-OSS 120B on W&B Inference', 'tools over the data layer · traced in Weave', C.wb, 1],
+    ['ui', 640, 450, 440, 70, 'Operator workspace', 'overview · incidents · cameras · city view · assistant', C.cl, 1],
   ];
-  const E = [['cams', 's3'], ['s3', 'seg'], ['seg', 'yolo'], ['yolo', 'reason'], ['reason', 'embed'], ['embed', 'vdb'], ['yolo', 'vdb'], ['reason', 'vdb'], ['prompt', 'reason'], ['vdb', 'rules'], ['rules', 'verify'], ['verify', 'inc'], ['inc', 'act'], ['inc', 'agent'], ['vdb', 'agent'], ['c311', 'ui'], ['perm', 'act'], ['agent', 'ui'], ['act', 'ui']];
   const byId = Object.fromEntries(N.map(n => [n[0], n]));
-  const mid = n => [n[1] + n[3] / 2, n[2] + n[4] / 2];
-  const edge = ([a, b]) => { const A = byId[a], B = byId[b]; const [ax, ay] = mid(A), [bx, by] = mid(B); const sx = ay === by ? (bx > ax ? A[1] + A[3] : A[1]) : ax, sy = ay === by ? ay : (by > ay ? A[2] + A[4] : A[2]); const tx = ay === by ? (bx > ax ? B[1] : B[1] + B[3]) : bx, ty = ay === by ? by : (by > ay ? B[2] : B[2] + B[4]); const built = A[8] || B[8]; return `<path d="M${sx},${sy} C${sx + (tx - sx) / 2},${sy} ${sx + (tx - sx) / 2},${ty} ${tx},${ty}" fill="none" stroke="${built ? C.cl : '#3a3a44'}" stroke-width="1.5" stroke-opacity="${built ? .7 : .9}" marker-end="url(#ah${built ? 'r' : 'g'})"/>`; };
+  const P = (pts, built, dash) => `<path d="M${pts.map(p => p.join(',')).join(' L')}" fill="none" stroke="${built ? C.cl : '#4a4a55'}" stroke-width="1.6" ${dash ? 'stroke-dasharray="5 4"' : ''} marker-end="url(#ah${built ? 'r' : 'g'})"/>`;
+  const R = id => byId[id], cx = n => n[1] + n[3] / 2, cy = n => n[2] + n[4] / 2, right = n => [n[1] + n[3], cy(n)], left = n => [n[1], cy(n)], top = (n, dx = 0) => [cx(n) + dx, n[2]], bottom = (n, dx = 0) => [cx(n) + dx, n[2] + n[4]];
+  const E = [
+    P([right(R('cams')), left(R('s3'))]), P([right(R('s3')), left(R('seg'))]), P([right(R('seg')), left(R('yolo'))]), P([right(R('yolo')), left(R('reason'))]), P([right(R('reason')), left(R('embed'))]),
+    P([bottom(R('yolo')), [cx(R('yolo')), R('vdb')[2]]]),                      // yolo → vdb
+    P([bottom(R('reason'), -40), [cx(R('reason')) - 40, 140], [660, 140], [660, R('vdb')[2]]]),  // reason → vdb
+    P([bottom(R('embed'), -60), [cx(R('embed')) - 60, 125], [675, 125], [675, R('vdb')[2]]]),    // embed → vdb
+    P([top(R('prompt')), bottom(R('reason'), 40)], 1),                           // prompt → reason
+    P([bottom(R('vdb'), -120), [cx(R('vdb')) - 120, 275], [cx(R('rules')), 275], top(R('rules'))], 1),  // vdb → rules
+    P([right(R('rules')), left(R('verify'))], 1), P([right(R('verify')), left(R('inc'))], 1), P([right(R('inc')), left(R('act'))], 1),
+    P([bottom(R('inc'), -60), [cx(R('inc')) - 60, 415], [cx(R('agent')) + 100, 415], [cx(R('agent')) + 100, R('agent')[2]]], 1),  // incidents → agent
+    P([bottom(R('vdb'), 100), [cx(R('vdb')) + 100, 290], [405, 290], [405, 400], [cx(R('agent')) - 100, 400], [cx(R('agent')) - 100, R('agent')[2]]], 1), // vdb → agent (through the gap between rules and verify)
+    P([bottom(R('city')), [cx(R('city')), 430], [cx(R('ui')) - 150, 430], [cx(R('ui')) - 150, R('ui')[2]]]),  // city data → workspace
+    P([bottom(R('city'), 40), [cx(R('city')) + 40, 395], [cx(R('act')), 395], bottom(R('act'))], 0, 1),      // city data → triage (dashed, upward into actions)
+    P([bottom(R('act'), 60), [cx(R('act')) + 60, R('ui')[2]]], 1), P([right(R('agent')), left(R('ui'))], 1),
+  ];
   const node = n => `<g><rect x="${n[1]}" y="${n[2]}" width="${n[3]}" height="${n[4]}" rx="10" fill="${n[8] ? 'rgba(229,32,47,.10)' : '#16161a'}" stroke="${n[8] ? C.cl : '#2a2a31'}" stroke-width="${n[8] ? 1.5 : 1}"/><circle cx="${n[1] + 14}" cy="${n[2] + 16}" r="4" fill="${n[7]}"/><text x="${n[1] + 24}" y="${n[2] + 21}" fill="#f5f5f7" font-size="13" font-weight="700" font-family="Montserrat, sans-serif">${n[5]}</text><text x="${n[1] + 14}" y="${n[2] + 41}" fill="#8a8a95" font-size="11.5" font-family="Nunito Sans, sans-serif">${n[6]}</text></g>`;
   const legend = [['VAST AI OS', C.vast], ['NVIDIA on CoreWeave', C.nv], ['Weights & Biases', C.wb], ['City open data', C.city], ['Built today', C.cl]].map(([t, c], i) => `<g transform="translate(${20 + i * 180},${H - 14})"><circle r="5" fill="${c}"/><text x="12" y="4" fill="#c7c7cf" font-size="12" font-family="Nunito Sans, sans-serif">${t}</text></g>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs><marker id="ahg" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="#3a3a44"/></marker><marker id="ahr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="${C.cl}"/></marker></defs>
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs><marker id="ahg" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="#4a4a55"/></marker><marker id="ahr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="${C.cl}"/></marker></defs>
   <text x="20" y="22" fill="#8a8a95" font-size="11" letter-spacing="1.5" font-family="Montserrat, sans-serif" font-weight="700">INGEST · PRE-BUILT, RUNS ON EVERY CLIP</text>
-  <text x="20" y="292" fill="${C.cl}" font-size="11" letter-spacing="1.5" font-family="Montserrat, sans-serif" font-weight="700">CITYLENS · BUILT TODAY, RUNS ON WHAT MATTERS</text>
-  ${E.map(edge).join('')}${N.map(node).join('')}${legend}</svg>`;
+  <text x="520" y="297" fill="${C.cl}" font-size="11" letter-spacing="1.5" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="start">CITYLENS · BUILT TODAY, RUNS ON WHAT MATTERS</text>
+  ${E.join('')}${N.map(node).join('')}${legend}</svg>`;
 }

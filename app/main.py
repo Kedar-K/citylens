@@ -332,10 +332,78 @@ def ask(req: AskReq):
     return agent.run(req.question, history=req.history)
 
 
+_CLIP_DIR = os.path.join(os.environ.get("CLIP_CACHE", "/tmp"), "citylens-clips")
+os.makedirs(_CLIP_DIR, exist_ok=True)
+_clip_locks = {}
+
+
+def _faststart_path(source):
+    """Parent chunks (30 s, ~35 MB) ship with the MP4 index at the end, so a browser must download the
+    whole file before it can play. Remux once (no re-encode) with the index up front and cache on disk."""
+    import hashlib
+    import subprocess
+    from app.thumbs import _ffmpeg
+    path = os.path.join(_CLIP_DIR, hashlib.sha1(source.encode()).hexdigest() + ".mp4")
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return path
+    lock = _clip_locks.setdefault(path, threading.Lock())
+    with lock:
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            return path
+        raw = vss.fetch_clip(source)
+        tmp = path + ".part"
+        subprocess.run([_ffmpeg(), "-loglevel", "error", "-y", "-i", "pipe:0", "-c", "copy", "-movflags", "+faststart", tmp],
+                       input=raw, capture_output=True, timeout=180)
+        if os.path.exists(tmp) and os.path.getsize(tmp) > 0:
+            os.replace(tmp, path)
+        else:  # remux failed, serve the original bytes
+            with open(path, "wb") as f:
+                f.write(raw)
+    # keep the cache bounded
+    files = sorted((os.path.getmtime(os.path.join(_CLIP_DIR, f)), f) for f in os.listdir(_CLIP_DIR) if f.endswith(".mp4"))
+    for _, f in files[:-40]:
+        try:
+            os.remove(os.path.join(_CLIP_DIR, f))
+        except OSError:
+            pass
+    return path
+
+
+def _send_file_range(path, request: Request):
+    size = os.path.getsize(path)
+    rng = request.headers.get("range")
+    start, end = 0, size - 1
+    status = 200
+    if rng and rng.startswith("bytes="):
+        a, _, b = rng[6:].partition("-")
+        start = int(a) if a else max(0, size - int(b))
+        end = int(b) if (b and a) else size - 1
+        end = min(end, size - 1)
+        status = 206
+    length = end - start + 1
+    headers = {"Accept-Ranges": "bytes", "Content-Length": str(length), "Cache-Control": "public, max-age=3600"}
+    if status == 206:
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+
+    def gen():
+        with open(path, "rb") as f:
+            f.seek(start)
+            left = length
+            while left > 0:
+                chunk = f.read(min(512 * 1024, left))
+                if not chunk:
+                    break
+                left -= len(chunk)
+                yield chunk
+    return StreamingResponse(gen(), status_code=status, media_type="video/mp4", headers=headers)
+
+
 @app.get("/api/clip")
 def clip(source: str, request: Request):
     """Stream a clip (5 s segment or 30 s parent chunk) from the video backend, passing Range through
     so the browser can seek. The browser never sees the backend token."""
+    if "/segments/" not in source:  # parent chunk: serve the faststart remux from the local cache
+        return _send_file_range(_faststart_path(source), request)
     req = urllib.request.Request(vss.stream_url(source))
     rng = request.headers.get("range")
     if rng:

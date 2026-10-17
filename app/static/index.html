@@ -11,13 +11,13 @@
 </head>
 <body>
 <div class="app">
-<aside class="side">
-  <div class="brand"><div class="mark"></div><div><div class="name">City<em>Lens</em></div><div class="tag">Traffic operations</div></div></div>
+<aside class="side" id="side">
+  <div class="brand"><div class="mark"></div><div class="bt"><div class="name">City<em>Lens</em></div><div class="tag">Traffic operations</div></div><button class="collapse" id="collapse" title="Collapse menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></button></div>
   <nav class="nav">
-    <button class="on" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>Overview</button>
-    <button data-view="incidents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>Incidents<span class="k" id="n-inc"></span></button>
-    <button data-view="measure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-6 3 3 5-7"/></svg>Cameras</button>
-    <button data-view="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg>System</button>
+    <button class="on" data-view="overview" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><span>Overview</span></button>
+    <button data-view="incidents" title="Incidents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg><span>Incidents</span><span class="k" id="n-inc"></span></button>
+    <button data-view="measure" title="Cameras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-6 3 3 5-7"/></svg><span>Cameras</span></button>
+    <button data-view="system" title="How it's built"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg><span>System</span></button>
   </nav>
   <div class="foot"><b>Built on</b><div class="stack"><span>VAST AI OS</span><span>NVIDIA Cosmos</span><span>YOLO11</span><span>W&amp;B Weave</span><span>CoreWeave</span></div></div>
 </aside>
