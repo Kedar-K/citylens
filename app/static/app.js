@@ -231,6 +231,15 @@ $('#m-run').onclick = async () => {
   $('#m-kpis').innerHTML = [[m.baseline_vehicles, "vehicles per clip, this camera's normal", ''], [m.peak.rolling, 'busiest minute, vehicles per clip', 'red'], [peakX + '×', 'peak vs normal', ''], [m.current_ratio + '×', 'last minute vs normal', m.current_ratio > 1.3 ? 'red' : 'green'], [m.people_median, 'people per clip, typical', ''], [m.segments, '5-second clips measured', 'teal']]
     .map(([v, l, c]) => `<div class="kpi ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
   $('#m-sub').textContent = `${nice(cam)} · ${(m.segments * 5 / 60).toFixed(0)} min of footage · vehicles and people per 5 s clip`;
+  const oc = ov.cameras.find(c => c.camera_id === cam) || {};
+  $('#m-title').textContent = nice(cam);
+  $('#m-pos').innerHTML = `<i></i>${esc(oc.intersection ? oc.intersection + ' · ' : '')}${city(oc.location)}${oc.status ? ' · <span class="chip ' + oc.status + '">' + oc.status + '</span>' : ''}`;
+  api('incidents?camera_id=' + encodeURIComponent(cam)).then(list => {
+    const conf = list.filter(i => i.status === 'confirmed'), dis = list.filter(i => i.status === 'dismissed');
+    $('#m-inc-sub').textContent = `${conf.length} confirmed · ${dis.length} dismissed by Cosmos`;
+    $('#m-inc').innerHTML = conf.length ? conf.slice(0, 6).map(incCard).join('') : '<div class="empty">Nothing confirmed on this camera yet. Run a watch on the Incidents screen.</div>';
+    wireCards($('#m-inc'));
+  });
   const labels = m.series.map(s => (s.i * 5 / 60).toFixed(1));
   cFlow?.destroy(); cFlow = new Chart($('#c-flow'), { type: 'bar', data: { labels, datasets: [
     { type: 'line', label: 'rolling minute', data: m.series.map(s => s.rolling), borderColor: '#ff4150', backgroundColor: 'rgba(229,32,47,.16)', fill: true, pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 2 },

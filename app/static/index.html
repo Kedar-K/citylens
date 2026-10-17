@@ -16,7 +16,7 @@
   <nav class="nav">
     <button class="on" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>Overview</button>
     <button data-view="incidents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>Incidents<span class="k" id="n-inc"></span></button>
-    <button data-view="measure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-6 3 3 5-7"/></svg>Measure</button>
+    <button data-view="measure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-6 3 3 5-7"/></svg>Cameras</button>
     <button data-view="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg>System</button>
   </nav>
   <div class="foot"><b>Built on</b><div class="stack"><span>VAST AI OS</span><span>NVIDIA Cosmos</span><span>YOLO11</span><span>W&amp;B Weave</span><span>CoreWeave</span></div></div>
@@ -50,13 +50,14 @@
 
 
 <section id="v-measure" hidden>
-  <div class="top"><div><h1>Measure</h1><p>Counts from YOLO detections stored with every clip, judged against each camera's own normal.</p></div></div>
+  <div class="top"><div><h1 id="m-title">Camera</h1><p>Counts from YOLO detections stored with every clip, judged against this camera's own normal, plus everything CityLens confirmed here.</p></div><div class="live" id="m-pos"></div></div>
   <div class="bar"><select class="sel" id="m-cam"></select><button class="btn" id="m-run">Measure</button></div>
   <div class="kpis" id="m-kpis"></div>
   <div class="m3">
     <div class="panel"><div class="h"><b>Vehicles per clip</b><span id="m-sub"></span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-flow"></canvas></div><div class="legend"><span><i style="background:#ff4150"></i>vehicles, rolling minute</span><span><i style="background:#9aa6ff"></i>people, rolling minute</span><span><i style="background:#2a2a31"></i>per clip</span><span><i style="background:#8a8a95"></i>this camera's normal</span></div></div></div>
     <div class="panel"><div class="h"><b>What the camera sees</b><span>object mix</span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-mix"></canvas></div></div></div>
   </div>
+  <div class="panel" style="margin-bottom:14px"><div class="h"><b>Incidents on this camera</b><span id="m-inc-sub"></span></div><div class="c"><div class="grid" id="m-inc"></div></div></div>
   <div class="m3">
     <div class="panel"><div class="h"><b>All cameras vs their normal</b><span>last minute</span></div><div class="c"><div class="ch" style="height:300px"><canvas id="c-cmp"></canvas></div></div></div>
     <div class="panel"><div class="h"><b>Moments</b><span>busiest and quietest minute</span></div><div class="c"><div class="grid" id="m-moments" style="grid-template-columns:1fr"></div></div></div>
