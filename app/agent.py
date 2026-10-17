@@ -111,9 +111,11 @@ class Agent:
             if ref.startswith("s3://"):
                 return f"[clip:{ref}]"
             stem = ref.rsplit("/", 1)[-1].replace(".mp4", "")
-            hit = next((s for s in sources if stem and stem in s), None)
+            hit = next((s for s in sources if stem and stem in s), None) or (sources[0] if sources else None)
             return f"[clip:{hit}]" if hit else ""
-        text = re.sub(r"[\[【]clip:([^\]】]+)[\]】]", fix, text)
+        text = re.sub(r"[\[【]clip:([^\]】]*)[\]】]", fix, text)
+        if sources and "[clip:" not in text and re.search(r"\bsee\s*[.,]", text):
+            text = re.sub(r"\bsee\s*([.,])", f"see [clip:{sources[0]}]\\1", text, count=1)
         return text.replace("**", "")
 
     def resolve_camera(self, text):
