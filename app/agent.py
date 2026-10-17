@@ -19,7 +19,8 @@ You answer operator questions about what the street cameras saw, using tools. Ru
 - Always call a tool before answering; never guess. Prefer list_incidents for "anything wrong / blocked /
   incidents" questions, search_clips for "find / show me / was there", busiest_cameras for "worst congestion /
   busiest" across cameras, camera_stats for one camera (busiest or quietest minute, vs its normal), city_summary for "what's happening in <city>",
-  permit_check for permits, construction, unpermitted work, and summarize_video for one video.
+  permit_check for permits, construction, unpermitted work, count_objects for any "how many / more / most"
+  question about vehicles or people, and summarize_video for one video.
 - Answer in 2 to 5 short sentences for an operator. Name cameras by their friendly name from the catalogue
   (e.g. "NYC Street 1"), and give times as "minute M of the recording". Use plain text, no markdown.
 - Call search_clips at most twice per question; if the first search is weak, refine once, then answer.
@@ -73,6 +74,12 @@ TOOLS = [
         "description": "Construction triage: each camera-confirmed work zone or lane closure checked against active permits and road restrictions (permit on file, possible match, or no permit found).",
         "parameters": {"type": "object", "properties": {
             "location": {"type": "string", "enum": ["san_francisco", "new_york", "toronto"]}}}}},
+    {"type": "function", "function": {
+        "name": "count_objects",
+        "description": "Exact YOLO detection counts (cars, trucks, buses, people, bicycles, motorcycles, ...) summed per camera and per city across all indexed clips. Use for any 'how many / more / most' question about objects.",
+        "parameters": {"type": "object", "properties": {
+            "object_class": {"type": "string", "description": "COCO class name, e.g. truck, bus, person, bicycle, car, motorcycle"}},
+            "required": ["object_class"]}}},
     {"type": "function", "function": {
         "name": "busiest_cameras",
         "description": "Rank cameras by how busy they are right now compared with their own normal (ratio of last-minute vehicles to that camera's baseline).",
@@ -227,6 +234,19 @@ class Agent:
             return {"triage": [], "note": "No camera-confirmed work zones to check in these cities."}
         return {"summary": {s: sum(1 for x in out if x["status"] == s) for s in ("permitted", "possible", "no_permit")}, "triage": out[:12]}
 
+    def count_objects(self, object_class):
+        cls = str(object_class).strip().lower().rstrip("s") if str(object_class).lower() not in ("bus", "buses") else "bus"
+        per_cam, per_city, clips = {}, {}, {}
+        for r in self.store.rows():
+            n = r["counts"].get(cls, 0)
+            if n:
+                per_cam[r["camera_id"]] = per_cam.get(r["camera_id"], 0) + n
+                per_city[r["location"]] = per_city.get(r["location"], 0) + n
+                clips[r["camera_id"]] = clips.get(r["camera_id"], 0) + 1
+        return {"object_class": cls, "note": "peak count per 5 s clip, summed over clips; compares relative presence",
+                "by_city": dict(sorted(per_city.items(), key=lambda kv: -kv[1])),
+                "by_camera": [{"camera_id": c, "name": NAMES.get(c), "total": n, "clips_with_it": clips[c]} for c, n in sorted(per_cam.items(), key=lambda kv: -kv[1])][:10]}
+
     def busiest_cameras(self, top=5):
         cams = [c for c in self.store.overview(self.store.incidents())["cameras"] if c.get("ratio") is not None]
         cams.sort(key=lambda c: -c["ratio"])
@@ -292,6 +312,6 @@ def traced(agent):
         import weave
     except ImportError:
         return agent
-    for name in ("run", "search_clips", "list_incidents", "camera_stats", "summarize_video", "city_summary", "permit_check", "busiest_cameras"):
+    for name in ("run", "search_clips", "list_incidents", "camera_stats", "summarize_video", "city_summary", "permit_check", "busiest_cameras", "count_objects"):
         setattr(agent, name, weave.op(name=f"citylens.{name}")(getattr(agent, name)))
     return agent
