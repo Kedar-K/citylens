@@ -53,18 +53,26 @@ async function loadOverview() {
     L.control.attribution({ position: 'bottomleft', prefix: false }).addAttribution('Basemap © Esri').addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
   }
-  map.eachLayer(l => { if (l instanceof L.CircleMarker || l instanceof L.Marker) map.removeLayer(l); });
+  map.eachLayer(l => { if (l instanceof L.CircleMarker || l instanceof L.Marker || l instanceof L.LayerGroup) map.removeLayer(l); });
   const pts = [];
   for (const c of OV.cities) {
     const col = c.status === 'incident' ? '#ff4150' : '#e4e4ea';
-    const m = L.circleMarker([c.lat, c.lon], { radius: 7 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 2, fillColor: col, fillOpacity: .25 }).addTo(map);
-    L.circleMarker([c.lat, c.lon], { radius: 3, color: col, fillColor: col, fillOpacity: 1, weight: 0 }).addTo(map);
+    const m = L.circleMarker([c.lat, c.lon], { radius: 9 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 1.5, fillColor: col, fillOpacity: .12 }).addTo(map);
+    
     m.bindPopup(`<b>${c.name}</b><br>${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.minutes} min indexed<br>${c.incidents} confirmed incident${c.incidents === 1 ? '' : 's'}`);
     L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#8a8a95">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }), interactive: false }).addTo(map);
     pts.push([c.lat, c.lon]);
   }
+  // camera pins (illustrative placement, see store.CAMERA_POS)
+  camLayer = L.layerGroup().addTo(map);
+  for (const c of OV.cameras.filter(c => c.lat)) {
+    const col = c.status === 'incident' ? '#ff4150' : c.status === 'busy' ? '#f2a93b' : '#c7c7cf';
+    const m = L.circleMarker([c.lat, c.lon], { radius: 6, color: '#09090b', weight: 2, fillColor: col, fillOpacity: 1 }).addTo(camLayer);
+    m.bindPopup(() => `<b>${nice(c.camera_id)}</b><br><span style="color:#8a8a95">${esc(c.intersection)} · ${city(c.location)}</span><br>${c.status === 'incident' ? c.incidents + ' confirmed incident' + (c.incidents > 1 ? 's' : '') : c.status} · ${c.ratio ?? '–'}× normal${nearby311(c) != null ? '<br>' + nearby311(c) + ' 311 requests within 500 m' : ''}<br><a href="#" onclick="show(\'measure\');document.querySelector(\'#m-cam\').value=\'${c.camera_id}\';document.querySelector(\'#m-run\').click();return false">Open camera →</a>`);
+    pts.push([c.lat, c.lon]);
+  }
   if (pts.length) map.fitBounds(pts, { padding: [50, 90], maxZoom: 6 });
-  $('#map-sub').textContent = `${OV.cities.length} cities · ${OV.cameras.length} cameras`;
+  $('#map-sub').textContent = `${OV.cities.length} cities · ${OV.cameras.length} cameras · camera placement illustrative`;
   // feed
   $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t">${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
     : '<div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div>';
@@ -77,7 +85,12 @@ async function loadOverview() {
   document.querySelectorAll('.cam').forEach(el => el.onclick = () => { show('measure'); $('#m-cam').value = el.dataset.cam; $('#m-run').click(); });
 }
 
-let layer311 = null, CITYDATA = {};
+let layer311 = null, camLayer = null, CITYDATA = {};
+function nearby311(c) {
+  const d = CITYDATA[c.location]; if (!d || !d.cases) return null;
+  const R = 6371000, toR = x => x * Math.PI / 180;
+  return d.cases.filter(x => { const dLat = toR(x.lat - c.lat), dLon = toR(x.lon - c.lon); const a = Math.sin(dLat / 2) ** 2 + Math.cos(toR(c.lat)) * Math.cos(toR(x.lat)) * Math.sin(dLon / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(a)) < 500; }).length;
+}
 async function loadCity() {
   const locs = OV.cities.map(c => c.location).filter(l => ['san_francisco', 'new_york'].includes(l));
   const res = await Promise.all(locs.map(l => api('city?location=' + l).catch(() => null)));
@@ -92,6 +105,8 @@ async function loadCity() {
       <div class="c311">${d.categories.map(([c, n]) => `<span>${esc(c)}</span><b>${n}</b><div class="bar"><i style="width:${Math.round(100 * n / mx)}%"></i></div>`).join('')}</div></div></div>`;
   }).join('');
   if ($('#l311').checked) draw311();
+  // nearby 311 on the camera wall
+  for (const c of OV.cameras.filter(c => c.lat)) { const n = nearby311(c); const el = document.querySelector(`.cam[data-cam="${c.camera_id}"] .m`); if (el && n != null) el.insertAdjacentHTML('beforeend', ` · ${n} 311 nearby`); }
 }
 function draw311() {
   if (layer311) { map.removeLayer(layer311); layer311 = null; }
@@ -103,7 +118,7 @@ function draw311() {
   }
   layer311.addTo(map);
   const first = Object.values(CITYDATA).find(d => d.cases?.length);
-  if (first && map.getZoom() < 9) { const c = OV.cities.find(x => x.location === first.location); if (c) map.flyTo([c.lat, c.lon], 12, { duration: .8 }); }
+  if (first && map.getZoom() < 9) { const c = OV.cities.find(x => x.location === first.location); if (c) map.flyTo([c.lat, c.lon], 13, { duration: .8 }); }
 }
 $('#l311').onchange = draw311;
 

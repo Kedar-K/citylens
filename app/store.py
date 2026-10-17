@@ -113,6 +113,21 @@ class Store:
               "toronto": ("Toronto", 43.6532, -79.3832),
               "nashville": ("Nashville", 36.1627, -86.7816)}
 
+    # Illustrative placement: the archive carries no coordinates, so each camera is pinned to a plausible
+    # intersection in its real city. A deployment registers true positions at install. Shown as such in the UI.
+    CAMERA_POS = {
+        "sf_streets_cam-1": ("Market St & 4th St", 37.7853, -122.4056),
+        "sf_streets_cam-2": ("Mission St & 16th St", 37.7650, -122.4196),
+        "sf_streets_cam-3": ("Van Ness Ave & Geary Blvd", 37.7855, -122.4221),
+        "sf_streets_cam-4": ("Columbus Ave & Broadway", 37.7978, -122.4068),
+        "sf_streets_cam-5": ("Haight St & Ashbury St", 37.7699, -122.4469),
+        "nyc_streets_cam-1": ("7th Ave & W 34th St", 40.7505, -73.9905),
+        "nyc_streets_cam-2": ("Broadway & Canal St", 40.7190, -74.0010),
+        "nyc_bike_gopro-1": ("Brooklyn Bridge approach", 40.7081, -74.0030),
+        "pie_cam-3": ("King St W & Spadina Ave", 43.6452, -79.3950),
+        "i24_cam-1": ("I-24 at Haywood Ln", 36.0960, -86.7120),
+    }
+
     def overview(self, incidents, spark_points=40):
         """Everything the Overview screen needs in one call."""
         rows = self.rows()
@@ -139,7 +154,9 @@ class Store:
                             "baseline": base, "ratio": round(ratio, 2) if ratio else None, "status": status,
                             "incidents": n_inc, "spark": spark, "latest_source": rs[-1]["source"],
                             "people_median": statistics.median(x["people"] for x in rs),
-                            "fixed": cam in FIXED})
+                            "fixed": cam in FIXED,
+                            "intersection": self.CAMERA_POS.get(cam, (None,))[0],
+                            "lat": self.CAMERA_POS.get(cam, (None, None))[1], "lon": self.CAMERA_POS.get(cam, (None, None, None))[2]})
         cameras.sort(key=lambda c: (not c["fixed"], {"incident": 0, "busy": 1, "normal": 2, "quiet": 3}[c["status"]], c["camera_id"]))
         cities = []
         for loc, (name, lat, lon) in self.CITIES.items():
