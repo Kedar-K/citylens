@@ -24,8 +24,17 @@ You answer operator questions about what the street cameras saw, using tools. Ru
   and answer from the clips, saying no verified incident is on file.
 - Times: the index has no wall-clock time. Describe moments as "minute M of the recording" using the minute fields.
 - If the tools return nothing relevant, say so plainly.
-Cameras are fixed street cameras (capture_type "streets") in san_francisco and new_york, plus toronto dashcam,
-nashville highway and a residential neighborhood camera."""
+Use camera ids exactly as listed in the camera catalogue below; never invent an id. If the user names a city,
+filter by location instead of guessing a camera.
+{catalogue}"""
+
+NAMES = {"sf_streets_cam-1": "SF Street 1", "sf_streets_cam-2": "SF Street 2", "sf_streets_cam-3": "SF Street 3",
+         "sf_streets_cam-4": "SF Street 4", "sf_streets_cam-5": "SF Street 5", "nyc_streets_cam-1": "NYC Street 1",
+         "nyc_streets_cam-2": "NYC Street 2", "neighborhood_cam-1": "Residential 1", "pie_cam-3": "Toronto dashcam",
+         "nyc_bike_gopro-1": "NYC bike cam", "i24_cam-1": "I-24 corridor", "smartspace_cam-1": "Indoor facility",
+         "sdg_warehouse_cam-2": "Warehouse"}
+LOCATIONS = {"san_francisco": ["san francisco", "sf"], "new_york": ["new york", "nyc", "manhattan"],
+             "toronto": ["toronto"], "nashville": ["nashville", "i-24", "highway"], "neighborhood": ["residential", "neighborhood", "neighbourhood"]}
 
 TOOLS = [
     {"type": "function", "function": {
@@ -65,6 +74,38 @@ class Agent:
         self._weave_ready = False
         self._lock = threading.Lock()
 
+    def _catalogue(self):
+        try:
+            cams = self.store.cameras()
+        except Exception:
+            return "Camera catalogue unavailable."
+        lines = [f"- {c['camera_id']} ({NAMES.get(c['camera_id'], c['camera_id'])}), location={c['location']}, "
+                 f"{c['capture_type']}, {c['minutes']} min indexed" for c in cams]
+        return "Camera catalogue (id, name, location):\n" + "\n".join(lines)
+
+    def resolve_camera(self, text):
+        """Map whatever the model passed (id, friendly name, city) to a real camera id or a location filter."""
+        if not text:
+            return None, None
+        t = str(text).strip().lower()
+        ids = [c["camera_id"] for c in self.store.cameras()]
+        if t in ids:
+            return t, None
+        for cid in ids:
+            if t == NAMES.get(cid, "").lower() or t.replace("_", " ").replace("-", " ") == cid.replace("_", " ").replace("-", " "):
+                return cid, None
+        for cid in ids:
+            name = NAMES.get(cid, "").lower()
+            if name and (name in t or t in name):
+                return cid, None
+        for loc, words in LOCATIONS.items():
+            if loc in t or any(w in t for w in words):
+                return None, loc
+        for cid in ids:  # last resort: shared token like "pie", "sf", "nyc"
+            if any(tok and tok in cid for tok in t.replace("-", " ").replace("_", " ").split()):
+                return cid, None
+        return None, None
+
     def _setup(self):
         with self._lock:
             if self._client is None:
@@ -83,10 +124,12 @@ class Agent:
     # -- tools ------------------------------------------------------------
     def search_clips(self, query, camera_id=None, location=None, top_k=8):
         f = {}
-        if camera_id:
-            f["camera_id"] = camera_id
-        if location:
-            f["location"] = location
+        cid, loc = self.resolve_camera(camera_id)
+        if cid:
+            f["camera_id"] = cid
+        elif loc or location:
+            _, loc2 = self.resolve_camera(location) if location else (None, None)
+            f["location"] = loc or loc2 or location
         res = self.vss.search(query, top_k=min(int(top_k or 8), 15), min_similarity=0.25,
                               metadata_filters=f, llm_top_n=1)
         return [{"source": r["source"], "camera_id": r.get("camera_id"), "location": r.get("location"),
@@ -95,7 +138,10 @@ class Agent:
                 for r in res.get("results", [])]
 
     def list_incidents(self, status="confirmed", camera_id=None, rule_id=None):
-        rows = self.store.incidents(status=status, camera_id=camera_id, rule_id=rule_id)
+        cid, loc = self.resolve_camera(camera_id)
+        rows = self.store.incidents(status=status, camera_id=cid, rule_id=rule_id)
+        if loc and not cid:
+            rows = [r for r in rows if r.get("location") == loc]
         if not rows:
             return {"incidents": [], "note": "No stored incidents match. Use search_clips to look at the footage directly."}
         return [{k: r.get(k) for k in ("id", "rule", "severity", "camera_id", "location", "source",
@@ -105,9 +151,10 @@ class Agent:
     def camera_stats(self, camera_id=None):
         if not camera_id:
             return self.store.cameras()
-        m = self.store.measure(camera_id)
+        cid, _ = self.resolve_camera(camera_id)
+        m = self.store.measure(cid or camera_id)
         if not m:
-            return {"error": f"unknown camera {camera_id}"}
+            return {"error": f"unknown camera {camera_id}; use an id from the catalogue"}
         out = {k: m[k] for k in ("camera_id", "location", "segments", "baseline_vehicles",
                                  "people_median", "current_ratio")}
         out["recording_minutes"] = round(m["segments"] * 5 / 60, 1)
@@ -124,7 +171,7 @@ class Agent:
     # -- loop -------------------------------------------------------------
     def run(self, question, history=None, max_steps=7):
         client = self._setup()
-        messages = [{"role": "system", "content": SYSTEM}] + (history or []) + [{"role": "user", "content": question}]
+        messages = [{"role": "system", "content": SYSTEM.format(catalogue=self._catalogue())}] + (history or []) + [{"role": "user", "content": question}]
         trace, t0 = [], time.time()
         for _ in range(max_steps):
             r = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOLS,
