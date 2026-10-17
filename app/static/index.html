@@ -27,11 +27,11 @@
   <div class="top"><div><h1>Network overview</h1><p>Every camera watched. Only what matters surfaces.</p></div><div class="live"><i></i><span id="live-txt">Watching 8 street cameras</span></div></div>
   <div class="kpis" id="kpis"></div>
   <div class="row2">
-    <div class="panel"><div class="h"><b>Camera network</b><span id="map-sub"></span></div><div style="position:relative"><div id="map"></div><label class="layer mapctl"><input type="checkbox" id="l311"> Show 311 requests</label></div></div>
-    <div class="panel t-red"><div class="h"><b>Incident feed</b><span>Verified by Cosmos Reason</span></div><div class="feed" id="feed"><div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div></div></div>
+    <div class="panel h-teal"><div class="h"><b>Camera network</b><span id="map-sub"></span></div><div style="position:relative"><div id="map"></div><label class="layer mapctl"><input type="checkbox" id="l311"> Show 311 requests</label></div></div>
+    <div class="panel h-red"><div class="h"><b>Incident feed</b><span>Verified by Cosmos Reason</span></div><div class="feed" id="feed"><div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div></div></div>
   </div>
   <div class="city" id="city"></div>
-  <div class="panel"><div class="h"><b>Camera wall</b><span>Load vs each camera's own normal</span></div><div class="c"><div class="wall" id="wall"></div></div></div>
+  <div class="panel h-blue"><div class="h"><b>Camera wall</b><span>Load vs each camera's own normal</span></div><div class="c"><div class="wall" id="wall"></div></div></div>
 </section>
 
 <section id="v-incidents" hidden>
@@ -54,14 +54,14 @@
   <div class="bar"><select class="sel" id="m-cam"></select><button class="btn" id="m-run">Measure</button></div>
   <div class="kpis" id="m-kpis"></div>
   <div class="m3">
-    <div class="panel"><div class="h"><b>Vehicles per clip</b><span id="m-sub"></span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-flow"></canvas></div><div class="legend"><span><i style="background:#ff4150"></i>vehicles, rolling minute</span><span><i style="background:#9aa6ff"></i>people, rolling minute</span><span><i style="background:#2a2a31"></i>per clip</span><span><i style="background:#8a8a95"></i>this camera's normal</span></div></div></div>
-    <div class="panel"><div class="h"><b>What the camera sees</b><span>object mix</span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-mix"></canvas></div></div></div>
+    <div class="panel h-blue"><div class="h"><b>Vehicles per clip</b><span id="m-sub"></span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-flow"></canvas></div><div class="legend"><span><i style="background:#ff4150"></i>vehicles, rolling minute</span><span><i style="background:#9aa6ff"></i>people, rolling minute</span><span><i style="background:#2a2a31"></i>per clip</span><span><i style="background:#8a8a95"></i>this camera's normal</span></div></div></div>
+    <div class="panel h-violet"><div class="h"><b>What the camera sees</b><span>object mix</span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-mix"></canvas></div></div></div>
   </div>
-  <div class="panel t-red" style="margin-bottom:14px"><div class="h"><b>Storyboard</b><span id="sb-sub">the whole recording, incidents marked</span></div><div class="c" style="padding:12px 18px 14px"><div class="sb" id="sb"></div><div class="sbaxis" id="sbaxis"></div></div></div>
-  <div class="panel" style="margin-bottom:14px"><div class="h"><b>Incidents on this camera</b><span id="m-inc-sub"></span></div><div class="c"><div class="grid" id="m-inc"></div></div></div>
+  <div class="panel h-blue" style="margin-bottom:14px"><div class="h"><b>Storyboard</b><span id="sb-sub">the whole recording, incidents marked</span></div><div class="c" style="padding:12px 18px 14px"><div class="sb" id="sb"></div><div class="sbaxis" id="sbaxis"></div></div></div>
+  <div class="panel h-red" style="margin-bottom:14px"><div class="h"><b>Incidents on this camera</b><span id="m-inc-sub"></span></div><div class="c"><div class="grid" id="m-inc"></div></div></div>
   <div class="m3">
-    <div class="panel"><div class="h"><b>All cameras vs their normal</b><span>last minute</span></div><div class="c"><div class="ch" style="height:300px"><canvas id="c-cmp"></canvas></div></div></div>
-    <div class="panel"><div class="h"><b>Moments</b><span>busiest and quietest minute</span></div><div class="c"><div class="grid" id="m-moments" style="grid-template-columns:1fr"></div></div></div>
+    <div class="panel h-amber"><div class="h"><b>All cameras vs their normal</b><span>last minute</span></div><div class="c"><div class="ch" style="height:300px"><canvas id="c-cmp"></canvas></div></div></div>
+    <div class="panel h-teal"><div class="h"><b>Moments</b><span>busiest and quietest minute</span></div><div class="c"><div class="grid" id="m-moments" style="grid-template-columns:1fr"></div></div></div>
   </div>
 </section>
 
@@ -69,19 +69,19 @@
   <div class="top"><div><h1 id="c-title">City</h1><p id="c-sub">Cameras, verified incidents, what residents report, and the permit register, in one view.</p></div><button class="btn ghost" onclick="show('overview')">← All cities</button></div>
   <div class="kpis" id="c-kpis"></div>
   <div class="row2" style="grid-template-columns:1.4fr 1fr">
-    <div class="panel"><div class="h"><b>City map</b><span id="c-map-sub"></span></div><div style="position:relative"><div id="cmap" style="height:460px"></div><div class="mapctl" style="display:flex;gap:14px"><label class="layer"><input type="checkbox" id="c-l311" checked> 311</label><label class="layer"><input type="checkbox" id="c-lperm" checked> Permits</label></div></div></div>
-    <div class="panel t-slate"><div class="h"><b>Construction triage</b><span>camera-confirmed street work vs the permit register</span></div><div class="feed" id="c-triage" style="max-height:460px"></div></div>
+    <div class="panel h-teal"><div class="h"><b>City map</b><span id="c-map-sub"></span></div><div style="position:relative"><div id="cmap" style="height:460px"></div><div class="mapctl" style="display:flex;gap:14px"><label class="layer"><input type="checkbox" id="c-l311" checked> 311</label><label class="layer"><input type="checkbox" id="c-lperm" checked> Permits</label></div></div></div>
+    <div class="panel h-violet"><div class="h"><b>Construction triage</b><span>camera-confirmed street work vs the permit register</span></div><div class="feed" id="c-triage" style="max-height:460px"></div></div>
   </div>
   <div class="row2">
-    <div class="panel t-red"><div class="h"><b>Confirmed incidents</b><span id="c-inc-sub"></span></div><div class="feed" id="c-inc" style="max-height:420px"></div></div>
-    <div class="panel t-amber"><div class="h"><b id="c-311-title">What residents report</b><span id="c-311-sub"></span></div><div class="c c311" id="c-311"></div></div>
+    <div class="panel h-red"><div class="h"><b>Confirmed incidents</b><span id="c-inc-sub"></span></div><div class="feed" id="c-inc" style="max-height:420px"></div></div>
+    <div class="panel h-amber"><div class="h"><b id="c-311-title">What residents report</b><span id="c-311-sub"></span></div><div class="c c311" id="c-311"></div></div>
   </div>
-  <div class="panel"><div class="h"><b>Cameras in this city</b><span>click to open</span></div><div class="c"><div class="wall" id="c-wall"></div></div></div>
+  <div class="panel h-blue"><div class="h"><b>Cameras in this city</b><span>click to open</span></div><div class="c"><div class="wall" id="c-wall"></div></div></div>
 </section>
 
 <section id="v-system" hidden>
   <div class="top"><div><h1>How it's built</h1><p>One data platform, GPU models on demand, an agent that only reads data. Everything CityLens adds is a new table or a new question, never a new pipeline.</p></div><button class="btn ghost" id="s-refresh">Refresh</button></div>
-  <div class="panel" style="margin-bottom:14px"><div class="h"><b>Architecture</b><span>grey: the shared stack, already running · crimson: built today</span></div><div class="c" style="padding:8px 10px 4px"><div id="arch"></div></div></div>
+  <div class="panel h-violet" style="margin-bottom:14px"><div class="h"><b>Architecture</b><span>grey: the shared stack, already running · crimson: built today</span></div><div class="c" style="padding:8px 10px 4px"><div id="arch"></div></div></div>
   <div class="sys" id="sys"></div>
 </section>
 

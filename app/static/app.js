@@ -14,7 +14,11 @@ const city = l => CITY[l] || l || '';
 const mmss = s => s == null ? '' : Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
 const ago = iso => { if (!iso) return ''; const d = (Date.now() - Date.parse(iso)) / 1000; return d < 90 ? 'just now' : d < 3600 ? Math.round(d / 60) + ' min ago' : d < 86400 ? Math.round(d / 3600) + ' h ago' : Math.round(d / 86400) + ' d ago'; };
 const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 3500); };
-Chart.defaults.color = '#8a8a95'; Chart.defaults.font.family = '"Nunito Sans", system-ui, sans-serif'; Chart.defaults.borderColor = 'rgba(255,255,255,.07)';
+Chart.defaults.color = '#8b97a8'; Chart.defaults.font.family = '"Nunito Sans", system-ui, sans-serif'; Chart.defaults.borderColor = 'rgba(255,255,255,.07)';
+
+/* kpi builder */
+const ICON = { camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>', clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>', clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg>', box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg>', alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>', check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-10"/></svg>', people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M15 15c3 0 6 1.5 6 4"/></svg>', doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg>', pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>', car: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14l2-6h12l2 6v5H4z"/><circle cx="8" cy="16" r="1.5"/><circle cx="16" cy="16" r="1.5"/></svg>', up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18l6-7 4 4 6-8"/></svg>', ratio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M12 4v16"/></svg>', city: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l5-3v16M14 21V11l5-2v12"/></svg>' };
+const kpi = (v, l, c = '', ic = 'box') => `<div class="kpi ${c}"><div class="ic">${ICON[ic] || ICON.box}</div><div><div class="v">${v}</div><div class="l">${l}</div></div></div>`;
 
 /* navigation */
 const views = ['overview', 'incidents', 'measure', 'system', 'city'];
@@ -44,10 +48,10 @@ async function loadOverview() {
   OV = await api('overview');
   const k = OV.kpis;
   $('#kpis').innerHTML = [
-    [k.fixed_cameras, 'street cameras watched', 'blue'], [k.minutes.toLocaleString() + ' min', 'video indexed across ' + k.cities + ' cities', 'slate'],
-    [k.clips.toLocaleString(), 'clips described by Cosmos', ''], [k.detections.toLocaleString(), 'objects detected by YOLO', 'amber'],
-    [k.incidents_confirmed, 'incidents confirmed', 'red'], [k.false_alarms_suppressed, 'false alarms suppressed', 'green']
-  ].map(([v, l, c]) => `<div class="kpi ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+    [k.fixed_cameras, 'street cameras watched', 'teal', 'camera'], [k.minutes.toLocaleString() + ' min', 'video indexed across ' + k.cities + ' cities', 'blue', 'clock'],
+    [k.clips.toLocaleString(), 'clips described by Cosmos', 'violet', 'clip'], [k.detections.toLocaleString(), 'objects detected by YOLO', 'amber', 'box'],
+    [k.incidents_confirmed, 'incidents confirmed', 'red', 'alert'], [k.false_alarms_suppressed, 'false alarms suppressed', 'green', 'check']
+  ].map(a => kpi(...a)).join('');
   $('#live-txt').textContent = `Watching ${k.fixed_cameras} street cameras`;
   $('#n-inc').textContent = k.incidents_confirmed || '';
   // map
@@ -60,7 +64,7 @@ async function loadOverview() {
   map.eachLayer(l => { if (l instanceof L.CircleMarker || l instanceof L.Marker || l instanceof L.LayerGroup) map.removeLayer(l); });
   const pts = [];
   for (const c of OV.cities) {
-    const col = c.status === 'incident' ? '#ff4150' : '#e4e4ea';
+    const col = c.status === 'incident' ? '#ff4150' : '#2dd4bf';
     const m = L.circleMarker([c.lat, c.lon], { radius: 9 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 1.5, fillColor: col, fillOpacity: .12 }).addTo(map);
     
     m.bindPopup(`<b>${c.name}</b><br>${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.minutes} min indexed<br>${c.incidents} confirmed incident${c.incidents === 1 ? '' : 's'}<br><a href="#" onclick="openCity('${c.location}');return false">Open city view →</a>`);
@@ -70,7 +74,7 @@ async function loadOverview() {
   // camera pins (illustrative placement, see store.CAMERA_POS)
   camLayer = L.layerGroup().addTo(map);
   for (const c of OV.cameras.filter(c => c.lat)) {
-    const col = c.status === 'incident' ? '#ff4150' : c.status === 'busy' ? '#f2a93b' : '#c7c7cf';
+    const col = c.status === 'incident' ? '#ff4150' : c.status === 'busy' ? '#f2a93b' : '#2dd4bf';
     const m = L.circleMarker([c.lat, c.lon], { radius: 6, color: '#09090b', weight: 2, fillColor: col, fillOpacity: 1 }).addTo(camLayer);
     m.bindPopup(() => camPopup(c, nearby311(c)), { minWidth: 260 });
     pts.push([c.lat, c.lon]);
@@ -113,8 +117,8 @@ async function loadCity() {
     const mx = d.categories[0]?.[1] || 1;
     const cams = OV.cameras.filter(c => c.location === d.location);
     const inc = cams.reduce((a, c) => a + c.incidents, 0);
-    return `<div class="panel t-amber"><div class="h"><b>${esc(d.name)} · what residents report</b><span>${d.total} latest requests · ${esc(d.attribution)} · ${d.fetched_at}</span></div><div class="c">
-      <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px"><div class="kpi"><div class="v">${d.street_related}</div><div class="l">street-related requests a camera could corroborate</div></div><div class="kpi red"><div class="v">${inc}</div><div class="l">incidents CityLens confirmed on ${cams.length} cameras here</div></div><div class="kpi"><div class="v">${d.latest ? ago(d.latest) : '–'}</div><div class="l">most recent request</div></div></div>
+    return `<div class="panel h-amber"><div class="h"><b>${esc(d.name)} · what residents report</b><span>${d.total} latest requests · ${esc(d.attribution)} · ${d.fetched_at}</span></div><div class="c">
+      <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">${kpi(d.street_related, 'street-related requests a camera could corroborate', 'amber', 'doc')}${kpi(inc, 'incidents CityLens confirmed on ' + cams.length + ' cameras here', 'red', 'alert')}${kpi(d.latest ? ago(d.latest) : '–', 'most recent request', 'blue', 'clock')}</div>
       <div class="c311">${d.categories.map(([c, n]) => `<span>${esc(c)}</span><b>${n}</b><div class="bar"><i style="width:${Math.round(100 * n / mx)}%"></i></div>`).join('')}</div></div></div>`;
   }).join('');
   if ($('#l311').checked) draw311();
@@ -268,8 +272,8 @@ $('#m-run').onclick = async () => {
   const cam = $('#m-cam').value; const m = await api('measure?camera_id=' + encodeURIComponent(cam));
   const ov = OV || await api('overview');
   const peakX = (m.peak.rolling / (m.baseline_vehicles || 1)).toFixed(1);
-  $('#m-kpis').innerHTML = [[m.baseline_vehicles, "vehicles per clip, this camera's normal", ''], [m.peak.rolling, 'busiest minute, vehicles per clip', 'red'], [peakX + '×', 'peak vs normal', ''], [m.current_ratio + '×', 'last minute vs normal', m.current_ratio > 1.3 ? 'red' : 'green'], [m.people_median, 'people per clip, typical', ''], [m.segments, '5-second clips measured', 'teal']]
-    .map(([v, l, c]) => `<div class="kpi ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  $('#m-kpis').innerHTML = [[m.baseline_vehicles, "vehicles per clip, this camera's normal", 'blue', 'car'], [m.peak.rolling, 'busiest minute, vehicles per clip', 'red', 'up'], [peakX + '×', 'peak vs normal', 'amber', 'ratio'], [m.current_ratio + '×', 'last minute vs normal', m.current_ratio > 1.3 ? 'red' : 'green', 'ratio'], [m.people_median, 'people per clip, typical', 'violet', 'people'], [m.segments, '5-second clips measured', 'teal', 'clip']]
+    .map(a => kpi(...a)).join('');
   $('#m-sub').textContent = `${nice(cam)} · ${(m.segments * 5 / 60).toFixed(0)} min of footage · vehicles and people per 5 s clip`;
   const oc = ov.cameras.find(c => c.camera_id === cam) || {};
   $('#m-title').textContent = nice(cam);
@@ -293,14 +297,14 @@ $('#m-run').onclick = async () => {
   const labels = m.series.map(s => (s.i * 5 / 60).toFixed(1));
   cFlow?.destroy(); cFlow = new Chart($('#c-flow'), { type: 'bar', data: { labels, datasets: [
     { type: 'line', label: 'rolling minute', data: m.series.map(s => s.rolling), borderColor: '#ff4150', backgroundColor: 'rgba(229,32,47,.16)', fill: true, pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 2 },
-    { label: 'per clip', data: m.series.map(s => s.vehicles), backgroundColor: '#2a2a31', borderWidth: 0, barPercentage: 1, categoryPercentage: .9 },
-    { type: 'line', label: 'people (rolling)', data: m.series.map((x, i, a) => { const w = a.slice(Math.max(0, i - 11), i + 1); return +(w.reduce((p, y) => p + y.people, 0) / w.length).toFixed(1); }), borderColor: '#9aa6ff', pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 1.5 },
+    { label: 'per clip', data: m.series.map(s => s.vehicles), backgroundColor: '#2a3442', borderWidth: 0, barPercentage: 1, categoryPercentage: .9 },
+    { type: 'line', label: 'people (rolling)', data: m.series.map((x, i, a) => { const w = a.slice(Math.max(0, i - 11), i + 1); return +(w.reduce((p, y) => p + y.people, 0) / w.length).toFixed(1); }), borderColor: '#a78bfa', pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 1.5 },
     { type: 'line', label: 'normal', data: m.series.map(() => m.baseline_vehicles), borderColor: '#8a8a95', borderDash: [5, 5], pointRadius: 0, borderWidth: 1 }] },
     options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => 'minute ' + it[0].label } } }, scales: { x: { ticks: { maxTicksLimit: 10, callback: (v, i) => labels[i] + ' min' }, grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' } } }, onClick: (e, els) => { if (els.length) { const s = m.series[els[0].index]; $('#m-moments').innerHTML = momentCard(s.source, `Minute ${(s.i * 5 / 60).toFixed(1)} · ${s.vehicles} vehicles, ${s.people} people in this clip`, s.original_video, s.seg ? (s.seg - 1) * 5 : 0); wireCards($('#m-moments')); } } } });
-  const mixCols = ['#ff4150', '#f5f5f7', '#9aa6ff', '#f2a93b', '#3ecf8e', '#8a8a95', '#4a4a55'];
+  const mixCols = ['#ff4150', '#60a5fa', '#a78bfa', '#f2a93b', '#3ecf8e', '#2dd4bf', '#5d6878'];
   cMix?.destroy(); cMix = new Chart($('#c-mix'), { type: 'doughnut', data: { labels: m.object_mix.map(o => o[0]), datasets: [{ data: m.object_mix.map(o => o[1]), backgroundColor: mixCols, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true, padding: 12 } } } } });
   const cmp = ov.cameras.filter(c => c.ratio != null);
-  cCmp?.destroy(); cCmp = new Chart($('#c-cmp'), { type: 'bar', data: { labels: cmp.map(c => nice(c.camera_id)), datasets: [{ data: cmp.map(c => c.ratio), backgroundColor: cmp.map(c => c.camera_id === cam ? '#ff4150' : c.ratio > 1.3 ? '#f2a93b' : '#2a2a31'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: it => it.raw + '× its normal' } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' }, ticks: { callback: v => v + '×' } }, y: { grid: { display: false } } }, onClick: (e, els) => { if (els.length) { $('#m-cam').value = cmp[els[0].index].camera_id; $('#m-run').click(); } } } });
+  cCmp?.destroy(); cCmp = new Chart($('#c-cmp'), { type: 'bar', data: { labels: cmp.map(c => nice(c.camera_id)), datasets: [{ data: cmp.map(c => c.ratio), backgroundColor: cmp.map(c => c.camera_id === cam ? '#ff4150' : c.ratio > 1.3 ? '#f2a93b' : '#334155'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: it => it.raw + '× its normal' } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' }, ticks: { callback: v => v + '×' } }, y: { grid: { display: false } } }, onClick: (e, els) => { if (els.length) { $('#m-cam').value = cmp[els[0].index].camera_id; $('#m-run').click(); } } } });
   $('#m-moments').innerHTML = momentCard(m.peak.source, `Busiest minute · ${m.peak.rolling} vehicles per clip (${peakX}× normal)`, m.peak.original_video, m.peak.seg ? (m.peak.seg - 1) * 5 : 0) + momentCard(m.quiet.source, `Quietest minute · ${m.quiet.rolling} vehicles per clip`, m.quiet.original_video, m.quiet.seg ? (m.quiet.seg - 1) * 5 : 0);
   wireCards($('#m-moments'));
 };
@@ -337,13 +341,13 @@ async function openCity(loc) {
   const d = await api('city_view?location=' + loc);
   const p = d.permits || {}, r = d.c311 || {};
   const noPermit = d.triage.filter(t => t.triage.status === 'no_permit').length, permitted = d.triage.filter(t => t.triage.status === 'permitted').length, possible = d.triage.filter(t => t.triage.status === 'possible').length;
-  $('#c-kpis').innerHTML = [[d.cameras.length, 'cameras'], [d.confirmed, 'incidents confirmed', 'red'], [d.dismissed, 'false alarms suppressed', 'green'], [r.total ?? '–', r.name ? 'latest 311 requests' : 'no 311 feed'], [p.count ?? '–', p.name ? 'active permits & restrictions' : 'no permit register'], [d.triage.length ? `${permitted} · ${possible} · ${noPermit}` : '–', 'work zones: on file · possible · no permit', noPermit ? 'red' : '']]
-    .map(([v, l, c]) => `<div class="kpi ${c || ''}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  $('#c-kpis').innerHTML = [[d.cameras.length, 'cameras', 'teal', 'camera'], [d.confirmed, 'incidents confirmed', 'red', 'alert'], [d.dismissed, 'false alarms suppressed', 'green', 'check'], [r.total ?? '–', r.name ? 'latest 311 requests' : 'no 311 feed', 'amber', 'doc'], [p.count ?? '–', p.name ? 'active permits & restrictions' : 'no permit register', 'violet', 'pin'], [d.triage.length ? `${permitted} · ${possible} · ${noPermit}` : '–', 'work zones: on file · possible · no permit', noPermit ? 'red' : 'blue', 'city']]
+    .map(a => kpi(...a)).join('');
   $('#c-sub').textContent = `${p.name ? p.name + ' · ' : ''}${r.name ? r.name + ' · ' : ''}camera placement illustrative`;
   // map
   if (!cmap) { cmap = L.map('cmap', { zoomControl: true, attributionControl: false }); L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(cmap); }
   Object.values(cLayers).forEach(l => cmap.removeLayer(l)); cLayers = {};
-  cLayers.p = L.layerGroup(); for (const x of (p.items || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#9aa6ff', weight: 0, fillColor: '#9aa6ff', fillOpacity: .7 }).bindPopup(() => pointPopup('Permit', '#9aa6ff', x.permit_type || x.kind, x.where, [x.holder, x.id, x.start ? (x.start + (x.end ? ' to ' + x.end : '')) : null]), { minWidth: 240 }).addTo(cLayers.p);
+  cLayers.p = L.layerGroup(); for (const x of (p.items || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#a78bfa', weight: 0, fillColor: '#a78bfa', fillOpacity: .7 }).bindPopup(() => pointPopup('Permit', '#a78bfa', x.permit_type || x.kind, x.where, [x.holder, x.id, x.start ? (x.start + (x.end ? ' to ' + x.end : '')) : null]), { minWidth: 240 }).addTo(cLayers.p);
   cLayers.r = L.layerGroup(); for (const x of (r.cases || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#f2a93b', weight: 0, fillColor: '#f2a93b', fillOpacity: .7 }).bindPopup(() => pointPopup('311 request', '#f2a93b', x.category, x.detail, [x.where, ago(x.when), x.status]), { minWidth: 240 }).addTo(cLayers.r);
   cLayers.c = L.layerGroup();
   const pts = [];
@@ -379,7 +383,7 @@ if (location.hash.startsWith('#city/')) openCity(location.hash.slice(6));
 /* ---------- architecture diagram ---------- */
 function archSvg() {
   const W = 1100, H = 560;
-  const C = { vast: '#9aa6ff', nv: '#3ecf8e', wb: '#f2a93b', cw: '#8a8a95', cl: '#ff4150', city: '#7cc4ff' };
+  const C = { vast: '#a78bfa', nv: '#3ecf8e', wb: '#f2a93b', cw: '#8b97a8', cl: '#ff4150', city: '#60a5fa' };
   // id, x, y, w, h, title, sub, color, built
   const N = [
     ['cams', 20, 40, 150, 58, 'Street cameras', 'SF · NYC · Toronto · Nashville', C.cw],
@@ -415,7 +419,7 @@ function archSvg() {
     P([bottom(R('city'), 40), [cx(R('city')) + 40, 395], [cx(R('act')), 395], bottom(R('act'))], 0, 1),      // city data → triage (dashed, upward into actions)
     P([bottom(R('act'), 60), [cx(R('act')) + 60, R('ui')[2]]], 1), P([right(R('agent')), left(R('ui'))], 1),
   ];
-  const node = n => `<g><rect x="${n[1]}" y="${n[2]}" width="${n[3]}" height="${n[4]}" rx="10" fill="${n[8] ? 'rgba(229,32,47,.10)' : '#16161a'}" stroke="${n[8] ? C.cl : '#2a2a31'}" stroke-width="${n[8] ? 1.5 : 1}"/><circle cx="${n[1] + 14}" cy="${n[2] + 16}" r="4" fill="${n[7]}"/><text x="${n[1] + 24}" y="${n[2] + 21}" fill="#f5f5f7" font-size="13" font-weight="700" font-family="Montserrat, sans-serif">${n[5]}</text><text x="${n[1] + 14}" y="${n[2] + 41}" fill="#8a8a95" font-size="11.5" font-family="Nunito Sans, sans-serif">${n[6]}</text></g>`;
+  const node = n => `<g><rect x="${n[1]}" y="${n[2]}" width="${n[3]}" height="${n[4]}" rx="10" fill="${n[8] ? 'rgba(229,32,47,.10)' : '#1b222d'}" stroke="${n[8] ? C.cl : '#2f3a48'}" stroke-width="${n[8] ? 1.5 : 1}"/><circle cx="${n[1] + 14}" cy="${n[2] + 16}" r="4" fill="${n[7]}"/><text x="${n[1] + 24}" y="${n[2] + 21}" fill="#f5f5f7" font-size="13" font-weight="700" font-family="Montserrat, sans-serif">${n[5]}</text><text x="${n[1] + 14}" y="${n[2] + 41}" fill="#8a8a95" font-size="11.5" font-family="Nunito Sans, sans-serif">${n[6]}</text></g>`;
   const legend = [['VAST AI OS', C.vast], ['NVIDIA on CoreWeave', C.nv], ['Weights & Biases', C.wb], ['City open data', C.city], ['Built today', C.cl]].map(([t, c], i) => `<g transform="translate(${20 + i * 180},${H - 14})"><circle r="5" fill="${c}"/><text x="12" y="4" fill="#c7c7cf" font-size="12" font-family="Nunito Sans, sans-serif">${t}</text></g>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs><marker id="ahg" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="#4a4a55"/></marker><marker id="ahr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="${C.cl}"/></marker></defs>
   <text x="20" y="22" fill="#8a8a95" font-size="11" letter-spacing="1.5" font-family="Montserrat, sans-serif" font-weight="700">INGEST · PRE-BUILT, RUNS ON EVERY CLIP</text>
