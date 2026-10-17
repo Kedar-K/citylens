@@ -45,6 +45,7 @@ function spark(vals, base) {
   return `<svg viewBox="0 0 ${w} ${h}"><path d="${area}" fill="rgba(229,32,47,.16)"/><path d="${line}" fill="none" stroke="#ff4150" stroke-width="1.6"/>${base ? `<line x1="0" x2="${w}" y1="${Y(base)}" y2="${Y(base)}" stroke="#8a8a95" stroke-dasharray="3 3" stroke-width="1"/>` : ''}</svg>`;
 }
 async function loadOverview() {
+  if (!RULES.length) RULES = await api('rules');
   OV = await api('overview');
   const k = OV.kpis;
   $('#kpis').innerHTML = [
@@ -144,6 +145,15 @@ function draw311() {
 }
 $('#l311').onchange = draw311;
 
+/* images that load a few at a time and retry, so a 24-frame strip never floods the server */
+function loadSequential(imgs, parallel = 4) {
+  let i = 0;
+  const next = () => { if (i >= imgs.length) return; const img = imgs[i++]; let tries = 0;
+    const go = () => { img.onload = next; img.onerror = () => { if (++tries < 4) setTimeout(go, 1500 * tries); else next(); }; img.src = img.dataset.src + (tries ? '&r=' + tries : ''); };
+    go(); };
+  for (let k = 0; k < parallel; k++) next();
+}
+
 /* ---------- bounding boxes ---------- */
 const BOXCOL = { person: '#f2a93b', car: '#7cc4ff', truck: '#c084fc', bus: '#5eead4', motorcycle: '#ff8fa3', bicycle: '#3ecf8e', 'traffic light': '#8a8a95' };
 const boxCache = {};
@@ -176,7 +186,8 @@ function incCard(i) {
   const verdict = v == null ? `<div class="verdict none"><span class="who">Cosmos</span><div>Not verified yet. <span class="conf">Similarity ${(+i.similarity || 0).toFixed(2)}</span></div></div>`
     : `<div class="verdict ${v}"><span class="who">Cosmos ${v}</span><div>${esc(i.reason)} <span class="conf">· ${Math.round((i.confidence || 0) * 100)}% sure · match ${(+i.similarity || 0).toFixed(2)}</span></div></div>`;
   const ctx = (i.original_video ? `<div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div>` : '') + `<button class="btn sm ghost boxbtn">Boxes</button>`;
-  const act = (st === 'confirmed' ? `<button class="btn sm act311" data-id="${i.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Create 311 case</button>` : '')
+  const actLabel = (RULES.find(r => r.id === i.rule_id) || {}).action || 'Create case';
+  const act = (st === 'confirmed' ? `<button class="btn sm act311" data-id="${i.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>${esc(actLabel)}</button>` : '')
     + (v != null ? `<button class="btn sm ghost recheck" data-id="${i.id}" title="Ask Cosmos Reason again">Re-check</button>` : '');
   return `<div class="inc ${st}" data-src="${esc(i.source)}" data-chunk="${esc(i.original_video || '')}" data-start="${i.segment_start_sec ?? 0}"><div class="v"><video src="${clipUrl(i.source)}" poster="${thumbUrl(i.source)}" controls muted preload="none" loop playsinline></video><span class="chip ${st}">${st}</span><span class="when">at ${mmss(i.segment_start_sec)}</span></div>
   <div class="b"><div class="t"><b><i class="rule-dot" style="color:${RULECOL[i.rule_id] || '#8a8a95'}"></i>${esc(i.rule)}</b><span class="chip ${i.severity}">${i.severity}</span></div><div class="m">${nice(i.camera_id)} · ${city(i.location)}${i.detected_at ? ' · ' + ago(i.detected_at) : ''}</div>${verdict}<div class="cap">${esc(i.caption)}</div><div class="acts">${ctx}${act}</div></div></div>`;
@@ -202,9 +213,9 @@ function wireCards(root) {
     catch (e) { b.disabled = false; b.textContent = 'Re-check'; toast('Re-check failed: ' + e.message); }
   });
   root.querySelectorAll('.act311').forEach(b => b.onclick = async () => {
-    b.disabled = true; b.textContent = 'Creating…';
-    try { const a = await post('actions', { incident_id: b.dataset.id }); b.outerHTML = `<span class="done">✓ Case ${esc(a.reference)} recorded · ${esc(a.summary.split(':')[0])}</span>`; toast(`311 case ${a.reference} recorded in VastDB (demo mode, not transmitted)`); }
-    catch (e) { b.disabled = false; b.textContent = 'Create 311 case'; toast('Could not create case: ' + e.message); }
+    const label = b.textContent; b.disabled = true; b.textContent = 'Sending…';
+    try { const a = await post('actions', { incident_id: b.dataset.id }); b.outerHTML = `<span class="done">✓ ${esc(a.reference)} sent to ${esc(a.note)}</span>`; toast(`${a.reference} recorded for ${a.note} in VastDB (demo mode, not transmitted)`); }
+    catch (e) { b.disabled = false; b.textContent = label; toast('Could not create the action: ' + e.message); }
   });
 }
 let lastList = [];
@@ -279,6 +290,7 @@ $('#ask').onclick = ask; $('#q').addEventListener('keydown', e => { if (e.key ==
 /* ---------- measure ---------- */
 let cFlow, cMix, cCmp;
 async function loadMeasure() {
+  if (!RULES.length) RULES = await api('rules');
   const cams = OV ? OV.cameras : await api('cameras');
   $('#m-cam').innerHTML = cams.map(c => `<option value="${c.camera_id}">${nice(c.camera_id)} · ${city(c.location)} · ${c.minutes} min</option>`).join('');
   $('#m-run').click();
@@ -297,7 +309,8 @@ $('#m-run').onclick = async () => {
   api('storyboard?camera_id=' + encodeURIComponent(cam) + '&n=24').then(sb => {
     $('#sb-sub').textContent = `${sb.minutes} min · ${sb.frames.length} frames · ${sb.incidents.length} confirmed incident${sb.incidents.length === 1 ? '' : 's'}`;
     const hitIdx = new Set(sb.incidents.map(x => Math.round(x.i / Math.max(1, sb.segments - 1) * (sb.frames.length - 1))));
-    $('#sb').innerHTML = sb.frames.map((f, k) => `<div class="f ${hitIdx.has(k) ? 'hit' : ''}" data-src="${esc(f.source)}" data-chunk="${esc(f.original_video)}" data-start="${(f.seg - 1) * 5}" title="minute ${f.minute} · ${f.vehicles} vehicles, ${f.people} people"><img src="${thumbUrl(f.source)}" loading="lazy" alt=""><span class="m">${f.minute}′</span></div>`).join('');
+    $('#sb').innerHTML = sb.frames.map((f, k) => `<div class="f ${hitIdx.has(k) ? 'hit' : ''}" data-src="${esc(f.source)}" data-chunk="${esc(f.original_video)}" data-start="${(f.seg - 1) * 5}" title="minute ${f.minute} · ${f.vehicles} vehicles, ${f.people} people"><img data-src="${thumbUrl(f.source)}&w=320" alt=""><span class="m">${f.minute}′</span></div>`).join('');
+    loadSequential([...$('#sb').querySelectorAll('img')]);
     const ticks = [0, .25, .5, .75, 1].map(t => `<span class="tick" style="left:${t * 100}%">${(t * sb.minutes).toFixed(0)} min</span>`).join('');
     $('#sbaxis').innerHTML = `<div class="line"></div>${ticks}` + sb.incidents.map(x => `<span class="pin" style="left:${x.pos * 100}%" title="${esc(x.rule)}: ${esc(x.reason || '')}" data-src="${esc(x.source)}" data-id="${x.id}"></span>`).join('');
     const play = (src, chunk, start, label) => { $('#m-moments').innerHTML = momentCard(src, label, chunk, start); wireCards($('#m-moments')); $('#m-moments').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#m-moments video').play().catch(() => {}); };
@@ -352,6 +365,7 @@ show(views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview
 /* ---------- city view ---------- */
 let cmap, cLayers = {};
 async function openCity(loc) {
+  if (!RULES.length) RULES = await api('rules');
   show('city'); history.replaceState(null, '', '#city/' + loc);
   $('#c-title').textContent = city(loc); $('#c-kpis').innerHTML = ''; $('#c-triage').innerHTML = '<div class="empty">Loading the permit register…</div>'; $('#c-inc').innerHTML = ''; $('#c-311').innerHTML = ''; $('#c-wall').innerHTML = '';
   const d = await api('city_view?location=' + loc);
@@ -379,7 +393,7 @@ async function openCity(loc) {
   $('#c-lperm').onchange = () => $('#c-lperm').checked ? cLayers.p.addTo(cmap) : cmap.removeLayer(cLayers.p);
   $('#c-map-sub').textContent = `${d.cameras.filter(c => c.lat).length} cameras · ${(r.cases || []).length} 311 · ${p.count || 0} permits`;
   // triage
-  $('#c-triage').innerHTML = d.triage.length ? d.triage.map(t => { const tr = t.triage; return `<div class="tri"><img src="${thumbUrl(t.source)}" loading="lazy" alt="" onclick="show('incidents');setTimeout(()=>{$('#s-cam').value='${t.camera_id}';$('#i-filter').value='confirmed';loadStored()},50)"><div><div class="t">${esc(t.rule)} <span class="chip ${tr.status}">${tr.status === 'permitted' ? 'permit on file' : tr.status === 'possible' ? 'possible match' : tr.status === 'no_permit' ? 'no permit found' : 'no position'}</span></div><div class="s">${nice(t.camera_id)} · at ${mmss(t.segment_start_sec)} · Cosmos: ${esc(t.reason || '')}</div><div class="r">${esc(tr.note || '')}${tr.match ? ` · <b>${esc(tr.match.id || '')}</b> ${esc(tr.match.holder || '')}` : ''}${tr.status !== 'permitted' ? ` <button class="btn sm act311" data-id="${t.id}" style="margin-left:8px">Open case</button>` : ''}${tr.candidates ? ` <span style="color:var(--muted)">· ${tr.candidates} active nearby</span>` : ''}</div></div></div>`; }).join('')
+  $('#c-triage').innerHTML = d.triage.length ? d.triage.map(t => { const tr = t.triage; return `<div class="tri"><img src="${thumbUrl(t.source)}" loading="lazy" alt="" onclick="show('incidents');setTimeout(()=>{$('#s-cam').value='${t.camera_id}';$('#i-filter').value='confirmed';loadStored()},50)"><div><div class="t">${esc(t.rule)} <span class="chip ${tr.status}">${tr.status === 'permitted' ? 'permit on file' : tr.status === 'possible' ? 'possible match' : tr.status === 'no_permit' ? 'no permit found' : 'no position'}</span></div><div class="s">${nice(t.camera_id)} · at ${mmss(t.segment_start_sec)} · Cosmos: ${esc(t.reason || '')}</div><div class="r">${esc(tr.note || '')}${tr.match ? ` · <b>${esc(tr.match.id || '')}</b> ${esc(tr.match.holder || '')}` : ''}${tr.status !== 'permitted' ? ` <button class="btn sm act311" data-id="${t.id}" style="margin-left:8px">Request permit inspection</button>` : ''}${tr.candidates ? ` <span style="color:var(--muted)">· ${tr.candidates} active nearby</span>` : ''}</div></div></div>`; }).join('')
     : `<div class="empty">${p.name ? 'No camera-confirmed work zones in this city yet. Run the work-zone rules on the Incidents screen.' : 'This city has no open permit register wired in.'}</div>`;
   wireCards($('#c-triage'));
   // incidents

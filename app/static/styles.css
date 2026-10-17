@@ -198,7 +198,7 @@ button{font:inherit}
 
 /* storyboard */
 .sb{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;border-radius:8px;overflow:hidden}
-.sb .f{position:relative;aspect-ratio:16/9;background:#000;cursor:pointer;overflow:hidden}.sb .f img{width:100%;height:100%;object-fit:cover;display:block;opacity:.85;transition:opacity .15s,transform .2s}.sb .f:hover img{opacity:1;transform:scale(1.06)}
+.sb .f{position:relative;aspect-ratio:16/9;background:var(--panel3);cursor:pointer;overflow:hidden}.sb .f img{width:100%;height:100%;object-fit:cover;display:block;opacity:.85;transition:opacity .15s,transform .2s}.sb .f:hover img{opacity:1;transform:scale(1.06)}
 .sb .f .m{position:absolute;left:6px;bottom:5px;font-size:10.5px;font-weight:700;color:#fff;text-shadow:0 1px 3px #000}
 .sb .f.hit::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 2px var(--red2)}
 .sbaxis{position:relative;height:26px;margin-top:8px}
@@ -235,3 +235,4 @@ button{font:inherit}
 .collapsed .brand{padding:0 0 20px}
 .leaflet-tooltip.ctip{background:var(--panel2);color:var(--text);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;font:13px var(--ui);box-shadow:0 10px 30px rgba(0,0,0,.4)}.leaflet-tooltip.ctip::before{border-top-color:var(--panel2)}
 .leaflet-interactive{cursor:pointer}
+.sb .f img:not([src]){visibility:hidden}

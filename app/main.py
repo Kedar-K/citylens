@@ -43,6 +43,12 @@ def _warm():
                 permit_data(loc)
             except Exception as e:
                 print("warm", loc, e)
+        try:  # storyboard frames for every camera, small size
+            for cam in {r["camera_id"] for r in store.rows()}:
+                for f in storyboard(cam)["frames"]:
+                    thumbnail(vss, f["source"], width=320)
+        except Exception as e:
+            print("warm thumbs", e)
         try:
             chunks = []
             for inc in store.incidents(status="confirmed"):
@@ -88,7 +94,8 @@ def static_file(fname: str, ext: str):
 
 @app.get("/api/rules")
 def rules():
-    return RULES
+    from app.store import ACTION_FOR_RULE
+    return [r | {"action": ACTION_FOR_RULE.get(r["id"], ("311_case", "Create 311 case", "311", "CL"))[1]} for r in RULES]
 
 
 @app.get("/api/cameras")
@@ -269,8 +276,8 @@ def storyboard(camera_id: str, n: int = 24):
 
 
 @app.get("/api/thumb")
-def thumb(source: str):
-    data = thumbnail(vss, source)
+def thumb(source: str, w: int = 640):
+    data = thumbnail(vss, source, width=max(160, min(w, 960)))
     if not data:
         raise HTTPException(404, "no frame")
     return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
@@ -470,7 +477,7 @@ def clip(source: str, request: Request):
 
 class ActionReq(BaseModel):
     incident_id: str
-    kind: str = "311_case"
+    kind: str | None = None
     note: str | None = None
 
 

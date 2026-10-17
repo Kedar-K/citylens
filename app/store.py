@@ -31,6 +31,16 @@ ACTION_SCHEMA = pa.schema([
     ("source", pa.utf8()), ("summary", pa.utf8()), ("note", pa.utf8()), ("status", pa.utf8()),
 ])
 ACTION_COLS = [f.name for f in ACTION_SCHEMA]
+ACTION_FOR_RULE = {  # who acts on each kind of incident: (kind, button label, destination, reference prefix)
+    "lane_blocked": ("enforcement", "Dispatch parking enforcement", "Parking enforcement", "PE"),
+    "pedestrian_conflict": ("safety_review", "Add to safety review", "Road safety review", "SR"),
+    "cyclist_squeeze": ("safety_review", "Add to safety review", "Road safety review", "SR"),
+    "congestion": ("signal_review", "Send to signal timing review", "Signal timing team", "ST"),
+    "work_zone": ("permit_inspection", "Request permit inspection", "Right-of-way inspections", "RW"),
+    "lane_closure": ("permit_inspection", "Request permit inspection", "Right-of-way inspections", "RW"),
+    "garbage_dumping": ("311_case", "Create 311 case", "311 street cleaning", "CL"),
+    "person_down": ("emergency", "Alert emergency dispatch", "Emergency dispatch", "EM"),
+}
 CASE_CATEGORY = {"lane_blocked": "Blocked travel lane", "pedestrian_conflict": "Pedestrian safety",
                  "cyclist_squeeze": "Cyclist safety", "congestion": "Traffic congestion",
                  "work_zone": "Street work / permit check", "lane_closure": "Lane closure / permit check",
@@ -283,18 +293,19 @@ class Store:
         out.sort(key=lambda a: a.get("created_at") or "", reverse=True)
         return out
 
-    def create_action(self, inc, kind="311_case", note=None):
+    def create_action(self, inc, kind=None, note=None):
         import hashlib
+        kind, _, dest, prefix = ACTION_FOR_RULE.get(inc.get("rule_id"), ("311_case", "", "311", "CL"))
         existing = [a for a in self.actions() if a["incident_id"] == inc["id"] and a["kind"] == kind]
         if existing:
             return existing[0]
         ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        ref = ("CL-" if kind == "311_case" else "DX-") + hashlib.sha1(f"{inc['id']}{kind}".encode()).hexdigest()[:6].upper()
+        ref = prefix + "-" + hashlib.sha1(f"{inc['id']}{kind}".encode()).hexdigest()[:6].upper()
         row = {"id": hashlib.sha256(f"{inc['id']}|{kind}".encode()).hexdigest()[:16], "created_at": ts, "kind": kind,
                "reference": ref, "incident_id": inc["id"], "rule": inc.get("rule"), "camera_id": inc.get("camera_id"),
                "location": inc.get("location"), "source": inc.get("source"),
                "summary": f"{CASE_CATEGORY.get(inc.get('rule_id'), inc.get('rule'))}: {inc.get('reason') or ''}".strip(),
-               "note": note or "", "status": "recorded (demo: not transmitted to the city)"}
+               "note": dest, "status": "recorded (demo: not transmitted to the city)"}
         with self.session().transaction() as tx:
             self._table(tx, "actions", ACTION_SCHEMA, ACTION_COLS).insert(
                 pa.table({k: [row[k]] for k in ACTION_COLS}, schema=ACTION_SCHEMA))
