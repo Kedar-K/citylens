@@ -220,3 +220,4 @@ button{font:inherit}
 .btn.ghost:hover{border-color:var(--line2);color:var(--text)}
 .live{border-color:rgba(45,212,191,.35)}.live i{background:var(--teal);animation:none;box-shadow:0 0 10px var(--teal)}
 .leaflet-tile{filter:saturate(.15) brightness(.8) contrast(1.05) hue-rotate(190deg)}
+.watch{border-color:rgba(229,32,47,.28)}.watch .c{padding:14px 18px 16px}.hint{color:var(--muted);font-size:12.5px}

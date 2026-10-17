@@ -35,17 +35,25 @@
 </section>
 
 <section id="v-incidents" hidden>
-  <div class="top"><div><h1>Incidents</h1><p>Rules search the captions. Cosmos Reason watches each candidate and gives a verdict. Confirmed incidents land in VastDB.</p></div></div>
+  <div class="top"><div><h1>Incidents</h1><p>What the rules found and Cosmos Reason confirmed, stored in VastDB. Every card carries the clip, the verdict and the reason.</p></div></div>
+  <div class="panel h-red watch" style="margin-bottom:16px"><div class="h"><b>Run a watch</b><span>search the captions for every rule, then let Cosmos Reason verify each candidate</span></div><div class="c">
+    <div class="bar" style="margin:0">
+      <select class="sel" id="i-cam"><option value="">All street cameras</option></select>
+      <select class="sel" id="i-rule"><option value="">All rules</option></select>
+      <label class="toggle"><input type="checkbox" id="i-verify" checked> Verify with Cosmos Reason</label>
+      <button class="btn" id="i-run"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Watch now</button>
+    </div>
+    <div class="prog" id="prog" style="margin:14px 0 0"><div class="l"><span id="p-txt">Searching…</span><b id="p-pct">0%</b></div><div class="t"><i id="p-bar"></i></div><div class="steps"><span>Candidates <b id="p-c">0</b></span><span>Verified <b id="p-v">0</b></span><span>Confirmed <b id="p-y">0</b></span><span>Dismissed <b id="p-n">0</b></span></div></div>
+  </div></div>
   <div class="bar">
-    <select class="sel" id="i-cam"><option value="">All street cameras</option></select>
-    <select class="sel" id="i-rule"><option value="">All rules</option></select>
-    <label class="toggle"><input type="checkbox" id="i-verify" checked> Verify with Cosmos Reason</label>
-    <button class="btn" id="i-run"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Watch now</button>
-    <button class="btn ghost" id="i-stored">Stored incidents</button>
-    <select class="sel" id="i-filter"><option value="">Show all</option><option value="confirmed">Confirmed only</option><option value="dismissed">Dismissed only</option></select>
+    <b style="font-family:var(--display);font-size:13px;margin-right:4px">Stored incidents</b>
+    <select class="sel" id="s-cam"><option value="">All cameras</option></select>
+    <select class="sel" id="s-rule"><option value="">All rules</option></select>
+    <select class="sel" id="i-filter"><option value="confirmed">Confirmed</option><option value="dismissed">Dismissed by Cosmos</option><option value="">All</option></select>
+    <span class="hint" id="s-count"></span>
+    <button class="btn ghost" id="i-stored" hidden>Reload</button>
   </div>
-  <div class="prog" id="prog"><div class="l"><span id="p-txt">Searching…</span><b id="p-pct">0%</b></div><div class="t"><i id="p-bar"></i></div><div class="steps"><span>Candidates <b id="p-c">0</b></span><span>Verified <b id="p-v">0</b></span><span>Confirmed <b id="p-y">0</b></span><span>Dismissed <b id="p-n">0</b></span></div></div>
-  <div class="grid" id="i-grid"><div class="empty">Press Watch now, or load stored incidents.</div></div>
+  <div class="grid" id="i-grid"><div class="empty">Loading stored incidents…</div></div>
 </section>
 
 

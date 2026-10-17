@@ -84,7 +84,7 @@ async function loadOverview() {
   // feed
   $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t"><i class="rule-dot" style="color:${RULECOL[i.rule_id] || '#8a8a95'}"></i>${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
     : '<div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div>';
-  document.querySelectorAll('.fitem').forEach(el => el.onclick = () => { show('incidents'); $('#i-filter').value = 'confirmed'; $('#i-stored').click(); });
+  document.querySelectorAll('.fitem').forEach(el => el.onclick = () => { show('incidents'); $('#i-filter').value = 'confirmed'; if (loaded.incidents) loadStored(); });
   // city services (311) for cities that publish open data
   loadCity();
   // wall
@@ -206,11 +206,21 @@ let lastList = [];
 async function loadIncidents() {
   RULES = await api('rules');
   CAMS = (OV ? OV.cameras : await api('cameras')).filter(c => /streets_cam|neighborhood|pie_cam/.test(c.camera_id));
-  $('#i-cam').innerHTML = '<option value="">All street cameras</option>' + CAMS.map(c => `<option value="${c.camera_id}">${nice(c.camera_id)} · ${city(c.location)}</option>`).join('');
-  $('#i-rule').innerHTML = '<option value="">All rules</option>' + RULES.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  const camOpts = CAMS.map(c => `<option value="${c.camera_id}">${nice(c.camera_id)} · ${city(c.location)}</option>`).join('');
+  const ruleOpts = RULES.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  $('#i-cam').innerHTML = '<option value="">All street cameras</option>' + camOpts; $('#s-cam').innerHTML = '<option value="">All cameras</option>' + camOpts;
+  $('#i-rule').innerHTML = '<option value="">All rules</option>' + ruleOpts; $('#s-rule').innerHTML = '<option value="">All rules</option>' + ruleOpts;
+  await loadStored();
+}
+async function loadStored() {
+  const q = []; if ($('#s-cam').value) q.push('camera_id=' + encodeURIComponent($('#s-cam').value)); if ($('#s-rule').value) q.push('rule_id=' + encodeURIComponent($('#s-rule').value));
+  lastList = await api('incidents' + (q.length ? '?' + q.join('&') : '')); renderIncidents(lastList);
+  const c = lastList.filter(i => i.status === 'confirmed').length, d = lastList.filter(i => i.status === 'dismissed').length;
+  $('#s-count').textContent = `${c} confirmed · ${d} dismissed`;
 }
 $('#i-filter').onchange = () => renderIncidents(lastList);
-$('#i-stored').onclick = async () => { const q = []; if ($('#i-cam').value) q.push('camera_id=' + encodeURIComponent($('#i-cam').value)); if ($('#i-rule').value) q.push('rule_id=' + encodeURIComponent($('#i-rule').value)); lastList = await api('incidents' + (q.length ? '?' + q.join('&') : '')); renderIncidents(lastList); };
+$('#s-cam').onchange = loadStored; $('#s-rule').onchange = loadStored;
+$('#i-stored').onclick = loadStored;
 $('#i-run').onclick = async () => {
   const b = $('#i-run'); b.disabled = true;
   const body = { verify: $('#i-verify').checked, max_verify: 12, top_k: 6 };
@@ -224,8 +234,8 @@ $('#i-run').onclick = async () => {
       const j = await api('detect/' + id);
       $('#p-c').textContent = j.candidates; $('#p-v').textContent = j.verify_done + '/' + j.verify_total; $('#p-y').textContent = j.confirmed; $('#p-n').textContent = j.dismissed;
       if (j.phase === 'searching') { $('#p-txt').textContent = 'Searching captions · ' + (j.detail || ''); $('#p-bar').style.width = '15%'; }
-      else if (j.phase === 'verifying') { const pct = j.verify_total ? 15 + 80 * j.verify_done / j.verify_total : 90; $('#p-txt').textContent = `Cosmos Reason is watching candidate clips (${j.verify_done} of ${j.verify_total})`; $('#p-bar').style.width = pct + '%'; $('#p-pct').textContent = Math.round(pct) + '%'; if (j.incidents?.length) { lastList = j.incidents; renderIncidents(lastList); } }
-      else if (j.phase === 'done') { $('#p-bar').style.width = '100%'; $('#p-pct').textContent = '100%'; $('#p-txt').textContent = `Done in ${j.seconds}s · ${j.confirmed} confirmed, ${j.dismissed} dismissed, ${j.saved} new rows written to VastDB`; lastList = j.incidents; renderIncidents(lastList); loaded.overview = false; break; }
+      else if (j.phase === 'verifying') { const pct = j.verify_total ? 15 + 80 * j.verify_done / j.verify_total : 90; $('#p-txt').textContent = `Cosmos Reason is watching candidate clips (${j.verify_done} of ${j.verify_total})`; $('#p-bar').style.width = pct + '%'; $('#p-pct').textContent = Math.round(pct) + '%'; if (j.incidents?.length) { $('#i-filter').value = ''; lastList = j.incidents; renderIncidents(lastList); } }
+      else if (j.phase === 'done') { $('#p-bar').style.width = '100%'; $('#p-pct').textContent = '100%'; $('#p-txt').textContent = `Done in ${j.seconds}s · ${j.confirmed} confirmed, ${j.dismissed} dismissed, ${j.saved} new rows written to VastDB`; $('#i-filter').value = ''; lastList = j.incidents; renderIncidents(lastList); $('#s-count').textContent = 'showing this run'; loaded.overview = false; break; }
       else if (j.phase === 'error') { $('#p-txt').textContent = 'Error: ' + j.error; break; }
     }
   } catch (e) { $('#p-txt').textContent = 'Error: ' + e.message; }
@@ -363,13 +373,13 @@ async function openCity(loc) {
   $('#c-lperm').onchange = () => $('#c-lperm').checked ? cLayers.p.addTo(cmap) : cmap.removeLayer(cLayers.p);
   $('#c-map-sub').textContent = `${d.cameras.filter(c => c.lat).length} cameras · ${(r.cases || []).length} 311 · ${p.count || 0} permits`;
   // triage
-  $('#c-triage').innerHTML = d.triage.length ? d.triage.map(t => { const tr = t.triage; return `<div class="tri"><img src="${thumbUrl(t.source)}" loading="lazy" alt="" onclick="show('incidents');$('#i-cam').value='${t.camera_id}';$('#i-filter').value='confirmed';$('#i-stored').click()"><div><div class="t">${esc(t.rule)} <span class="chip ${tr.status}">${tr.status === 'permitted' ? 'permit on file' : tr.status === 'possible' ? 'possible match' : tr.status === 'no_permit' ? 'no permit found' : 'no position'}</span></div><div class="s">${nice(t.camera_id)} · at ${mmss(t.segment_start_sec)} · Cosmos: ${esc(t.reason || '')}</div><div class="r">${esc(tr.note || '')}${tr.match ? ` · <b>${esc(tr.match.id || '')}</b> ${esc(tr.match.holder || '')}` : ''}${tr.status !== 'permitted' ? ` <button class="btn sm act311" data-id="${t.id}" style="margin-left:8px">Open case</button>` : ''}${tr.candidates ? ` <span style="color:var(--muted)">· ${tr.candidates} active nearby</span>` : ''}</div></div></div>`; }).join('')
+  $('#c-triage').innerHTML = d.triage.length ? d.triage.map(t => { const tr = t.triage; return `<div class="tri"><img src="${thumbUrl(t.source)}" loading="lazy" alt="" onclick="show('incidents');setTimeout(()=>{$('#s-cam').value='${t.camera_id}';$('#i-filter').value='confirmed';loadStored()},50)"><div><div class="t">${esc(t.rule)} <span class="chip ${tr.status}">${tr.status === 'permitted' ? 'permit on file' : tr.status === 'possible' ? 'possible match' : tr.status === 'no_permit' ? 'no permit found' : 'no position'}</span></div><div class="s">${nice(t.camera_id)} · at ${mmss(t.segment_start_sec)} · Cosmos: ${esc(t.reason || '')}</div><div class="r">${esc(tr.note || '')}${tr.match ? ` · <b>${esc(tr.match.id || '')}</b> ${esc(tr.match.holder || '')}` : ''}${tr.status !== 'permitted' ? ` <button class="btn sm act311" data-id="${t.id}" style="margin-left:8px">Open case</button>` : ''}${tr.candidates ? ` <span style="color:var(--muted)">· ${tr.candidates} active nearby</span>` : ''}</div></div></div>`; }).join('')
     : `<div class="empty">${p.name ? 'No camera-confirmed work zones in this city yet. Run the work-zone rules on the Incidents screen.' : 'This city has no open permit register wired in.'}</div>`;
   wireCards($('#c-triage'));
   // incidents
   const conf = d.incidents.filter(i => i.status === 'confirmed');
   $('#c-inc-sub').textContent = `${conf.length} confirmed · ${d.dismissed} dismissed`;
-  $('#c-inc').innerHTML = conf.length ? conf.map(i => `<div class="fitem" onclick="show('incidents');$('#i-cam').value='${i.camera_id}';$('#i-filter').value='confirmed';$('#i-stored').click()"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t">${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('') : '<div class="empty">No confirmed incidents here yet.</div>';
+  $('#c-inc').innerHTML = conf.length ? conf.map(i => `<div class="fitem" onclick="show('incidents');setTimeout(()=>{$('#s-cam').value='${i.camera_id}';$('#i-filter').value='confirmed';loadStored()},50)"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t">${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('') : '<div class="empty">No confirmed incidents here yet.</div>';
   // 311
   $('#c-311-title').textContent = r.name || 'What residents report'; $('#c-311-sub').textContent = r.name ? `${r.total} latest · ${r.attribution} · ${r.fetched_at}` : 'no open-data feed for this city';
   const mx = r.categories?.[0]?.[1] || 1;
