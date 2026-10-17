@@ -20,6 +20,9 @@ You answer operator questions about what the street cameras saw, using tools. Ru
   normal", and summarize_video for "what happened in this video".
 - Answer in 2 to 5 short sentences for an operator. Name cameras by id and give times as segment offsets.
 - Cite evidence as clip references in the form [clip:<source>] so the UI can play them. Include at most 4.
+- If list_incidents returns an empty list, do not call it again: call search_clips once with a descriptive query
+  and answer from the clips, saying no verified incident is on file.
+- Times: the index has no wall-clock time. Describe moments as "minute M of the recording" using the minute fields.
 - If the tools return nothing relevant, say so plainly.
 Cameras are fixed street cameras (capture_type "streets") in san_francisco and new_york, plus toronto dashcam,
 nashville highway and a residential neighborhood camera."""
@@ -93,6 +96,8 @@ class Agent:
 
     def list_incidents(self, status="confirmed", camera_id=None, rule_id=None):
         rows = self.store.incidents(status=status, camera_id=camera_id, rule_id=rule_id)
+        if not rows:
+            return {"incidents": [], "note": "No stored incidents match. Use search_clips to look at the footage directly."}
         return [{k: r.get(k) for k in ("id", "rule", "severity", "camera_id", "location", "source",
                                        "segment_start_sec", "confidence", "reason", "detected_at")}
                 for r in rows[:20]]
@@ -103,15 +108,21 @@ class Agent:
         m = self.store.measure(camera_id)
         if not m:
             return {"error": f"unknown camera {camera_id}"}
-        return {k: m[k] for k in ("camera_id", "location", "segments", "baseline_vehicles",
-                                  "people_median", "current_ratio", "peak", "quiet")}
+        out = {k: m[k] for k in ("camera_id", "location", "segments", "baseline_vehicles",
+                                 "people_median", "current_ratio")}
+        out["recording_minutes"] = round(m["segments"] * 5 / 60, 1)
+        for k in ("peak", "quiet"):
+            p = m[k]
+            out[k] = {"minute_of_recording": round(p["i"] * 5 / 60, 1), "vehicles_per_clip_rolling": p["rolling"],
+                      "ratio_to_normal": p["ratio"], "source": p["source"]}
+        return out
 
     def summarize_video(self, original_video, question=None):
         r = self.vss.synthesize(original_video, question or "Summarize what happens in this video for a traffic operator")
         return {"answer": r.get("answer"), "segments_used": r.get("segments_used")}
 
     # -- loop -------------------------------------------------------------
-    def run(self, question, history=None, max_steps=5):
+    def run(self, question, history=None, max_steps=7):
         client = self._setup()
         messages = [{"role": "system", "content": SYSTEM}] + (history or []) + [{"role": "user", "content": question}]
         trace, t0 = [], time.time()
@@ -122,7 +133,7 @@ class Agent:
             if not m.tool_calls:
                 return {"answer": m.content or "", "trace": trace, "model": MODEL,
                         "seconds": round(time.time() - t0, 1),
-                        "weave_url": f"https://wandb.ai/{WEAVE_PROJECT}/weave" if self._weave_ready else None}
+                        "weave_url": f"https://wandb.ai/{WEAVE_PROJECT}/weave" if WEAVE_PROJECT else None}
             messages.append({"role": "assistant", "content": m.content or "",
                              "tool_calls": [tc.model_dump() for tc in m.tool_calls]})
             for tc in m.tool_calls:

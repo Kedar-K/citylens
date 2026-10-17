@@ -109,8 +109,9 @@ class Store:
                            "vehicles": r["vehicles"], "people": r["people"], "bikes": r["bikes"],
                            "rolling": round(cur, 1),
                            "ratio": round(cur / base, 2) if base else None})
-        peak = max(series, key=lambda s: s["rolling"])
-        quiet = min(series, key=lambda s: s["rolling"])
+        full = series[window - 1:] or series  # only judge peaks on a full rolling window
+        peak = max(full, key=lambda s: s["rolling"])
+        quiet = min(full, key=lambda s: s["rolling"])
         return {"camera_id": camera_id, "location": rows[0]["location"], "segments": len(rows),
                 "baseline_vehicles": base, "people_median": statistics.median(r["people"] for r in rows),
                 "current_ratio": series[-1]["ratio"], "peak": peak, "quiet": quiet,
@@ -120,8 +121,13 @@ class Store:
     def _incidents_table(self, tx):
         b = tx.bucket(self.bucket)
         sch = b.schema("citylens", fail_if_missing=False) or b.create_schema("citylens")
-        return (sch.table("incidents", fail_if_missing=False)
-                or sch.create_table("incidents", columns=INCIDENT_SCHEMA))
+        t = sch.table("incidents", fail_if_missing=False)
+        if t is not None:
+            cols = t.columns() if callable(t.columns) else t.columns
+            if {c.name for c in cols} != set(INCIDENT_COLS):  # stale layout from an earlier build
+                t.drop()
+                t = None
+        return t or sch.create_table("incidents", columns=INCIDENT_SCHEMA)
 
     def save_incidents(self, incidents):
         if not incidents:

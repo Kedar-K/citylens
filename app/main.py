@@ -18,6 +18,7 @@ from app.verify import verify_incident  # noqa: E402
 from app.agent import Agent, traced  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.environ.get("STATIC_DIR") or os.path.join(HERE, "static")
 app = FastAPI(title="CityLens")
 vss = VSS()
 store = Store()
@@ -32,7 +33,7 @@ def health():
 
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(HERE, "static", "index.html"))
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 
 @app.get("/api/rules")

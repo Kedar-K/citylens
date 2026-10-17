@@ -87,8 +87,9 @@ a{color:var(--blue)}
 </main>
 <script>
 const $=s=>document.querySelector(s);
-const api=(p,o)=>fetch('api/'+p,o).then(r=>r.json());
-const clipUrl=s=>'api/clip?source='+encodeURIComponent(s);
+const BASE=location.pathname.replace(/\/?$/,'/');
+const api=(p,o)=>fetch(BASE+'api/'+p,o).then(r=>r.json());
+const clipUrl=s=>BASE+'api/clip?source='+encodeURIComponent(s);
 const nice=c=>(c||'').replace('sf_streets_cam-','SF cam ').replace('nyc_streets_cam-','NYC cam ').replace('pie_cam-3','Toronto dashcam').replace('neighborhood_cam-1','Neighborhood cam').replace('i24_cam-1','I-24 highway').replace('nyc_bike_gopro-1','NYC bike cam');
 const fmt=s=>s==null?'':(Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0'));
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');['detect','investigate','measure'].forEach(t=>$('#'+t).hidden=t!==b.dataset.tab)});
@@ -128,7 +129,7 @@ $('#d-load').onclick=async()=>{const r=await api('incidents');$('#d-stat').inner
 
 const history=[];
 function renderAnswer(text){
-  const refs=[];text=text.replace(/\[clip:([^\]]+)\]/g,(m,s)=>{refs.push(s);return `<span class="clipref" data-s="${s}">clip ${refs.length}</span>`});
+  const refs=[];text=text.replace(/[\[【]clip:([^\]】]+)[\]】]/g,(m,s)=>{refs.push(s);return `<span class="clipref" data-s="${s}">clip ${refs.length}</span>`});
   return {html:text,refs};
 }
 $('#ask').onclick=async()=>{

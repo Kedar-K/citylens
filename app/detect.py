@@ -3,7 +3,7 @@ import concurrent.futures as cf
 import hashlib
 import time
 
-from .rules import RULES, STREET_CAMERA_FILTER
+from .rules import RULES, FIXED_CAMERAS
 
 
 def _incident_id(rule_id, source):
@@ -13,10 +13,8 @@ def _incident_id(rule_id, source):
 def run_rules(vss, cameras=None, rules=None, top_k=12, extra_filters=None):
     """Return candidate incidents: one per (rule, segment) above the rule's similarity floor."""
     rules = rules or RULES
-    filters = dict(STREET_CAMERA_FILTER)
-    if extra_filters:
-        filters.update(extra_filters)
-    cams = cameras or [None]
+    filters = dict(extra_filters or {})
+    cams = cameras or FIXED_CAMERAS
     jobs = [(r, c) for r in rules for c in cams]
 
     def one(job):

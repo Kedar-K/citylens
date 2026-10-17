@@ -52,5 +52,6 @@ RULES = [
 
 RULE_BY_ID = {r["id"]: r for r in RULES}
 
-# Cameras CityLens treats as city street cameras (fixed, roadside).
-STREET_CAMERA_FILTER = {"capture_type": "streets"}
+# Fixed roadside cameras CityLens watches by default (dashcams and bike cams are searchable but not watched).
+FIXED_CAMERAS = ["sf_streets_cam-1", "sf_streets_cam-2", "sf_streets_cam-3", "sf_streets_cam-4",
+                 "sf_streets_cam-5", "nyc_streets_cam-1", "nyc_streets_cam-2", "neighborhood_cam-1"]
