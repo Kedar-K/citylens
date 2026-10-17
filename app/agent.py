@@ -16,8 +16,9 @@ WEAVE_PROJECT = f"{os.environ.get('WANDB_TEAM', '')}/{os.environ.get('WANDB_PROJ
 SYSTEM = """You are CityLens, a traffic operations assistant for a city traffic management centre.
 You answer operator questions about what the street cameras saw, using tools. Rules:
 - Always call a tool before answering; never guess. Prefer list_incidents for "anything wrong / blocked /
-  incidents" questions, search_clips for "find / show me / was there", camera_stats for "how busy / compare /
-  normal", and summarize_video for "what happened in this video".
+  incidents" questions, search_clips for "find / show me / was there", busiest_cameras for "worst congestion /
+  busiest", camera_stats for one camera vs its normal, city_summary for "what's happening in <city>",
+  permit_check for permits, construction, unpermitted work, and summarize_video for one video.
 - Answer in 2 to 5 short sentences for an operator. Name cameras by id and give times as segment offsets.
 - Cite evidence as clip references in the form [clip:<source>] so the UI can play them. Include at most 4.
 - If list_incidents returns an empty list, do not call it again: call search_clips once with a descriptive query
@@ -58,6 +59,21 @@ TOOLS = [
         "description": "Vehicle and pedestrian counts for a camera from YOLO detections, with that camera's own baseline.",
         "parameters": {"type": "object", "properties": {
             "camera_id": {"type": "string", "description": "Omit to get a summary of every camera"}}}}},
+    {"type": "function", "function": {
+        "name": "city_summary",
+        "description": "Everything about one city: cameras and their load vs normal, confirmed incidents by rule, what residents report to 311, the permit register, and the construction triage.",
+        "parameters": {"type": "object", "properties": {
+            "location": {"type": "string", "enum": ["san_francisco", "new_york", "toronto", "nashville"]}},
+            "required": ["location"]}}},
+    {"type": "function", "function": {
+        "name": "permit_check",
+        "description": "Construction triage: each camera-confirmed work zone or lane closure checked against active permits and road restrictions (permit on file, possible match, or no permit found).",
+        "parameters": {"type": "object", "properties": {
+            "location": {"type": "string", "enum": ["san_francisco", "new_york", "toronto"]}}}}},
+    {"type": "function", "function": {
+        "name": "busiest_cameras",
+        "description": "Rank cameras by how busy they are right now compared with their own normal (ratio of last-minute vehicles to that camera's baseline).",
+        "parameters": {"type": "object", "properties": {"top": {"type": "integer", "default": 5}}}}},
     {"type": "function", "function": {
         "name": "summarize_video",
         "description": "Ask the video index to summarize one parent video (an original_video s3 uri) or answer a question about it.",
@@ -164,6 +180,40 @@ class Agent:
                       "ratio_to_normal": p["ratio"], "source": p["source"]}
         return out
 
+    def city_summary(self, location):
+        from app.main import city_view
+        d = city_view(location)
+        by_rule = {}
+        for i in d["incidents"]:
+            if i["status"] == "confirmed":
+                by_rule[i["rule"]] = by_rule.get(i["rule"], 0) + 1
+        return {"city": d["name"], "cameras": [{"camera_id": c["camera_id"], "intersection": c.get("intersection"), "load_vs_normal": c.get("ratio"),
+                                               "confirmed_incidents": c["incidents"]} for c in d["cameras"]],
+                "confirmed_by_rule": by_rule, "false_alarms_suppressed": d["dismissed"],
+                "residents_311": {"source": d["c311"].get("name"), "latest_requests": d["c311"].get("total"), "top_categories": d["c311"].get("categories", [])[:6]},
+                "permit_register": {"source": d["permits"].get("name"), "active_items": d["permits"].get("count")},
+                "construction_triage": [{"rule": t["rule"], "camera_id": t["camera_id"], "status": t["triage"]["status"], "note": t["triage"]["note"], "source": t["source"]} for t in d["triage"]][:8],
+                "actions_taken": len(d["actions"])}
+
+    def permit_check(self, location=None):
+        from app.main import city_view
+        locs = [location] if location else ["toronto", "san_francisco", "new_york"]
+        out = []
+        for loc in locs:
+            d = city_view(loc)
+            for t in d["triage"]:
+                out.append({"city": d["name"], "camera_id": t["camera_id"], "rule": t["rule"], "status": t["triage"]["status"],
+                            "note": t["triage"]["note"], "nearest_permit": (t["triage"].get("match") or {}).get("id"), "source": t["source"]})
+        if not out:
+            return {"triage": [], "note": "No camera-confirmed work zones to check in these cities."}
+        return {"summary": {s: sum(1 for x in out if x["status"] == s) for s in ("permitted", "possible", "no_permit")}, "triage": out[:12]}
+
+    def busiest_cameras(self, top=5):
+        cams = [c for c in self.store.overview(self.store.incidents())["cameras"] if c.get("ratio") is not None]
+        cams.sort(key=lambda c: -c["ratio"])
+        return [{"camera_id": c["camera_id"], "name": NAMES.get(c["camera_id"]), "location": c["location"], "load_vs_normal": c["ratio"],
+                 "baseline_vehicles_per_clip": c["baseline"], "status": c["status"], "source": c["latest_source"]} for c in cams[:int(top or 5)]]
+
     def summarize_video(self, original_video, question=None):
         r = self.vss.synthesize(original_video, question or "Summarize what happens in this video for a traffic operator")
         return {"answer": r.get("answer"), "segments_used": r.get("segments_used")}
@@ -213,6 +263,6 @@ def traced(agent):
         import weave
     except ImportError:
         return agent
-    for name in ("run", "search_clips", "list_incidents", "camera_stats", "summarize_video"):
+    for name in ("run", "search_clips", "list_incidents", "camera_stats", "summarize_video", "city_summary", "permit_check", "busiest_cameras"):
         setattr(agent, name, weave.op(name=f"citylens.{name}")(getattr(agent, name)))
     return agent

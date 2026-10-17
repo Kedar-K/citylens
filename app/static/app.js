@@ -259,10 +259,24 @@ $('#i-run').onclick = async () => {
 };
 
 /* ---------- floating assistant ---------- */
-const SUGG = ['Anything blocking a lane in San Francisco?', 'Where did the Toronto dashcam see street work?', 'Pedestrians outside the crosswalk on SF Street 5?', 'How busy is NYC Street 1 vs its normal?', 'Cyclists close to buses', 'Summarize the confirmed incidents'];
+const SUGG = [
+  ['Permits', 'Is any street work in Toronto happening without a permit?'],
+  ['Permits', 'Which work zones need a permit inspection?'],
+  ['Incidents', 'What are the most serious incidents confirmed today?'],
+  ['Incidents', 'Show me pedestrians crossing outside the crosswalk'],
+  ['Congestion', 'Which camera has the worst congestion compared to normal?'],
+  ['Congestion', 'When was NYC Street 1 busiest?'],
+  ['Area', "What's happening in San Francisco right now?"],
+  ['Area', 'What do New York residents report most, and what do our cameras see?'],
+  ['Find', 'Find cyclists riding next to buses'],
+];
 const hist = [];
 const cw = $('#chatw');
-function openChat() { cw.hidden = false; $('#fab').hidden = true; if (!$('#sugg').children.length) $('#sugg').innerHTML = SUGG.map(s => `<button>${s}</button>`).join(''); document.querySelectorAll('#sugg button').forEach(b => b.onclick = () => { $('#q').value = b.textContent; ask(); }); setTimeout(() => $('#q').focus(), 50); }
+function renderSugg() {
+  $('#sugg').innerHTML = SUGG.map(([tag, q]) => `<button data-q="${esc(q)}"><i class="tag t-${tag.toLowerCase()}">${tag}</i>${esc(q)}</button>`).join('');
+  document.querySelectorAll('#sugg button').forEach(b => b.onclick = () => { $('#q').value = b.dataset.q; ask(); });
+}
+function openChat() { cw.hidden = false; $('#fab').hidden = true; if (!$('#sugg').children.length) renderSugg(); setTimeout(() => $('#q').focus(), 50); }
 function closeChat() { cw.hidden = true; $('#fab').hidden = false; }
 $('#fab').onclick = openChat; $('#cw-close').onclick = closeChat;
 $('#cw-expand').onclick = () => cw.classList.toggle('big');
@@ -270,7 +284,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !cw.hidden
 function clipCard(src, cap) { return `<div class="inc"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(cap || '')}</div></div></div>`; }
 const scrollChat = () => { const m = $('#msgs'); m.scrollTop = m.scrollHeight; };
 async function ask() {
-  const q = $('#q').value.trim(); if (!q) return; $('#q').value = ''; $('#sugg').innerHTML = '';
+  const q = $('#q').value.trim(); if (!q) return; $('#q').value = '';
   $('#msgs').insertAdjacentHTML('beforeend', `<div class="msg u">${esc(q)}</div><div class="msg a think" id="pending"><i></i>Querying the data layer…</div>`); scrollChat();
   $('#ask').disabled = true;
   try {

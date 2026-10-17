@@ -236,3 +236,9 @@ button{font:inherit}
 .leaflet-tooltip.ctip{background:var(--panel2);color:var(--text);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;font:13px var(--ui);box-shadow:0 10px 30px rgba(0,0,0,.4)}.leaflet-tooltip.ctip::before{border-top-color:var(--panel2)}
 .leaflet-interactive{cursor:pointer}
 .sb .f img:not([src]){visibility:hidden}
+/* demo questions */
+.sugg{max-height:118px;overflow:auto;padding:8px 12px 10px;border-top:1px solid var(--line)}
+.chatw.big .sugg{max-height:none}
+.sugg button{display:inline-flex;align-items:center;gap:7px;text-align:left}
+.sugg .tag{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:4px}
+.tag.t-permits{background:var(--violet-dim);color:var(--violet)}.tag.t-incidents{background:var(--red-dim);color:var(--red2)}.tag.t-congestion{background:var(--amber-dim);color:var(--amber)}.tag.t-area{background:var(--teal-dim);color:var(--teal)}.tag.t-find{background:var(--blue-dim);color:var(--blue)}
