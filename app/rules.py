@@ -47,6 +47,18 @@ RULES = [
         "query": "construction work zone with traffic cones, barriers or a crew on the road",
         "min_similarity": 0.30,
         "verify": "Are there traffic cones, barriers, a work crew or construction equipment occupying part of the road?",
+        # also watched from the Toronto dashcam drives: street work seen from the road, the input for permit matching
+        "extra_cameras": ["pie_cam-3"],
+    },
+    {
+        "id": "lane_closure",
+        "name": "Lane closed by street work",
+        "severity": "medium",
+        "query": "a lane closed off by cones or barriers with traffic merging around construction or utility work",
+        "min_similarity": 0.32,
+        "verify": ("Is a traffic lane closed or blocked by cones, barriers, a work truck or a road crew, forcing "
+                   "vehicles to merge or go around? Cones on the sidewalk or a parked truck alone do NOT count."),
+        "extra_cameras": ["pie_cam-3"],
     },
 ]
 

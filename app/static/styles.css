@@ -76,7 +76,7 @@ button{font:inherit}
 .cam:hover{transform:translateY(-3px);border-color:var(--line2);box-shadow:var(--shadow)}
 .cam .img{position:relative;aspect-ratio:16/9;background:#000}.cam img{width:100%;height:100%;object-fit:cover;display:block}
 .cam .img::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.25),transparent 40%,rgba(0,0,0,.35))}
-.cam .img .chip{position:absolute;top:10px;left:10px;backdrop-filter:blur(8px);z-index:1}
+.cam .img .chip{position:absolute;top:10px;left:10px;background:rgba(9,9,11,.78);backdrop-filter:blur(8px);z-index:1;border-color:rgba(255,255,255,.12)}
 .cam .img .id{position:absolute;right:10px;bottom:10px;font-size:10.5px;color:#fff;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);padding:2px 8px;border-radius:5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;z-index:1}
 .cam .b{padding:12px 14px;display:grid;grid-template-columns:1fr 92px;gap:10px;align-items:center}
 .cam .n{font-weight:600;font-size:13.5px}.cam .m{color:var(--muted);font-size:11.5px;margin-top:3px}
@@ -101,7 +101,7 @@ button{font:inherit}
 .inc{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;transition:border-color .2s}
 .inc.confirmed{border-color:rgba(229,32,47,.5);box-shadow:0 0 0 1px rgba(229,32,47,.18),0 16px 40px rgba(229,32,47,.1)}
 .inc .v{position:relative;aspect-ratio:16/9;background:#000}.inc video,.inc img{width:100%;height:100%;object-fit:cover;display:block}
-.inc .v .chip{position:absolute;top:12px;left:12px;backdrop-filter:blur(8px);z-index:1}
+.inc .v .chip{position:absolute;top:12px;left:12px;background:rgba(9,9,11,.78);backdrop-filter:blur(8px);z-index:1;border-color:rgba(255,255,255,.12)}
 .inc .v .when{position:absolute;right:12px;top:12px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);padding:3px 8px;border-radius:5px;font-weight:600;z-index:1}
 .inc .b{padding:14px 16px 16px}.inc .t{display:flex;justify-content:space-between;gap:8px;align-items:center}.inc .t b{font-size:14.5px;font-weight:600}
 .inc .m{color:var(--muted);font-size:12px;margin-top:3px}

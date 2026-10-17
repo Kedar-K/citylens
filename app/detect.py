@@ -14,8 +14,10 @@ def run_rules(vss, cameras=None, rules=None, top_k=12, extra_filters=None):
     """Return candidate incidents: one per (rule, segment) above the rule's similarity floor."""
     rules = rules or RULES
     filters = dict(extra_filters or {})
-    cams = cameras or FIXED_CAMERAS
-    jobs = [(r, c) for r in rules for c in cams]
+    jobs = []
+    for r in rules:
+        cams = cameras or (FIXED_CAMERAS + r.get("extra_cameras", []))
+        jobs += [(r, c) for c in cams]
 
     def one(job):
         rule, cam = job

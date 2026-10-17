@@ -92,7 +92,7 @@ function renderIncidents(list) {
 let lastList = [];
 async function loadIncidents() {
   RULES = await api('rules');
-  CAMS = (OV ? OV.cameras : await api('cameras')).filter(c => c.fixed !== false && /streets_cam|neighborhood/.test(c.camera_id));
+  CAMS = (OV ? OV.cameras : await api('cameras')).filter(c => /streets_cam|neighborhood|pie_cam/.test(c.camera_id));
   $('#i-cam').innerHTML = '<option value="">All street cameras</option>' + CAMS.map(c => `<option value="${c.camera_id}">${nice(c.camera_id)} · ${city(c.location)}</option>`).join('');
   $('#i-rule').innerHTML = '<option value="">All rules</option>' + RULES.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
 }
@@ -120,7 +120,7 @@ $('#i-run').onclick = async () => {
 };
 
 /* ---------- investigate ---------- */
-const SUGG = ['Anything blocking a lane in San Francisco?', 'Were there pedestrians crossing outside the crosswalk on SF Street 5?', 'How busy is NYC Street 1 compared to its normal?', 'Show me cyclists close to buses', 'Which camera has the most trucks?', 'Summarize the incidents confirmed so far'];
+const SUGG = ['Anything blocking a lane in San Francisco?', 'Where did the Toronto dashcam see street work or lane closures?', 'Were there pedestrians crossing outside the crosswalk on SF Street 5?', 'How busy is NYC Street 1 compared to its normal?', 'Show me cyclists close to buses', 'Which camera has the most trucks?', 'Summarize the incidents confirmed so far'];
 const hist = [];
 function loadInvestigate() { $('#sugg').innerHTML = SUGG.map(s => `<button>${s}</button>`).join(''); document.querySelectorAll('#sugg button').forEach(b => b.onclick = () => { $('#q').value = b.textContent; ask(); }); }
 function evidCard(src, cap) { return `<div class="inc"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(cap || src.split('/').pop())}</div></div></div>`; }
