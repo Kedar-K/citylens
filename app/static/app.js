@@ -283,6 +283,7 @@ async function loadMeasure() {
   $('#m-cam').innerHTML = cams.map(c => `<option value="${c.camera_id}">${nice(c.camera_id)} · ${city(c.location)} · ${c.minutes} min</option>`).join('');
   $('#m-run').click();
 }
+$('#m-cam').onchange = () => $('#m-run').click();
 $('#m-run').onclick = async () => {
   const cam = $('#m-cam').value; const m = await api('measure?camera_id=' + encodeURIComponent(cam));
   const ov = OV || await api('overview');

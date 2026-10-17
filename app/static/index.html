@@ -60,7 +60,7 @@
 
 <section id="v-measure" hidden>
   <div class="top"><div><h1 id="m-title">Camera</h1><p>Counts from YOLO detections stored with every clip, judged against this camera's own normal, plus everything CityLens confirmed here.</p></div><div class="live" id="m-pos"></div></div>
-  <div class="bar"><select class="sel" id="m-cam"></select><button class="btn" id="m-run">Measure</button></div>
+  <div class="bar"><label class="hint" for="m-cam" style="font-weight:600">Camera</label><select class="sel" id="m-cam" style="min-width:320px"></select><button id="m-run" hidden></button></div>
   <div class="kpis" id="m-kpis"></div>
   <div class="m3">
     <div class="panel h-blue"><div class="h"><b>Vehicles per clip</b><span id="m-sub"></span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-flow"></canvas></div><div class="legend"><span><i style="background:#ff4150"></i>vehicles, rolling minute</span><span><i style="background:#9aa6ff"></i>people, rolling minute</span><span><i style="background:#2a2a31"></i>per clip</span><span><i style="background:#8a8a95"></i>this camera's normal</span></div></div></div>
