@@ -6,6 +6,7 @@ const post = (p, body) => api(p, { method: 'POST', headers: { 'content-type': 'a
 const clipUrl = s => BASE + 'api/clip?source=' + encodeURIComponent(s);
 const thumbUrl = s => BASE + 'api/thumb?source=' + encodeURIComponent(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const RULECOL = { lane_blocked: '#ff4150', pedestrian_conflict: '#f2a93b', cyclist_squeeze: '#3ecf8e', congestion: '#9aa6ff', work_zone: '#c084fc', lane_closure: '#c084fc', garbage_dumping: '#8a8a95', person_down: '#ff4150' };
 const NAMES = { 'sf_streets_cam-1': 'SF Street 1', 'sf_streets_cam-2': 'SF Street 2', 'sf_streets_cam-3': 'SF Street 3', 'sf_streets_cam-4': 'SF Street 4', 'sf_streets_cam-5': 'SF Street 5', 'nyc_streets_cam-1': 'NYC Street 1', 'nyc_streets_cam-2': 'NYC Street 2', 'neighborhood_cam-1': 'Residential 1', 'pie_cam-3': 'Toronto dashcam', 'nyc_bike_gopro-1': 'NYC bike cam', 'i24_cam-1': 'I-24 corridor', 'smartspace_cam-1': 'Indoor facility', 'sdg_warehouse_cam-2': 'Warehouse' };
 const CITY = { san_francisco: 'San Francisco', new_york: 'New York', toronto: 'Toronto', nashville: 'Nashville', neighborhood: 'Residential site', indoor: 'Indoor', warehouse3: 'Warehouse' };
 const nice = c => NAMES[c] || c || '';
@@ -40,8 +41,8 @@ async function loadOverview() {
   OV = await api('overview');
   const k = OV.kpis;
   $('#kpis').innerHTML = [
-    [k.fixed_cameras, 'street cameras watched', 'teal'], [k.minutes.toLocaleString() + ' min', 'video indexed across ' + k.cities + ' cities', ''],
-    [k.clips.toLocaleString(), 'clips described by Cosmos', ''], [k.detections.toLocaleString(), 'objects detected by YOLO', ''],
+    [k.fixed_cameras, 'street cameras watched', 'blue'], [k.minutes.toLocaleString() + ' min', 'video indexed across ' + k.cities + ' cities', 'slate'],
+    [k.clips.toLocaleString(), 'clips described by Cosmos', ''], [k.detections.toLocaleString(), 'objects detected by YOLO', 'amber'],
     [k.incidents_confirmed, 'incidents confirmed', 'red'], [k.false_alarms_suppressed, 'false alarms suppressed', 'green']
   ].map(([v, l, c]) => `<div class="kpi ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
   $('#live-txt').textContent = `Watching ${k.fixed_cameras} street cameras`;
@@ -74,7 +75,7 @@ async function loadOverview() {
   if (pts.length) map.fitBounds(pts, { padding: [50, 90], maxZoom: 6 });
   $('#map-sub').innerHTML = OV.cities.map(c => `<a href="#" onclick="openCity('${c.location}');return false" style="margin-left:10px;font-weight:600">${c.name} →</a>`).join('') + ` <span style="margin-left:10px">· camera placement illustrative</span>`;
   // feed
-  $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t">${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
+  $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t"><i class="rule-dot" style="color:${RULECOL[i.rule_id] || '#8a8a95'}"></i>${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
     : '<div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div>';
   document.querySelectorAll('.fitem').forEach(el => el.onclick = () => { show('incidents'); $('#i-filter').value = 'confirmed'; $('#i-stored').click(); });
   // city services (311) for cities that publish open data
@@ -106,7 +107,7 @@ async function loadCity() {
     const mx = d.categories[0]?.[1] || 1;
     const cams = OV.cameras.filter(c => c.location === d.location);
     const inc = cams.reduce((a, c) => a + c.incidents, 0);
-    return `<div class="panel"><div class="h"><b>${esc(d.name)} · what residents report</b><span>${d.total} latest requests · ${esc(d.attribution)} · ${d.fetched_at}</span></div><div class="c">
+    return `<div class="panel t-amber"><div class="h"><b>${esc(d.name)} · what residents report</b><span>${d.total} latest requests · ${esc(d.attribution)} · ${d.fetched_at}</span></div><div class="c">
       <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px"><div class="kpi"><div class="v">${d.street_related}</div><div class="l">street-related requests a camera could corroborate</div></div><div class="kpi red"><div class="v">${inc}</div><div class="l">incidents CityLens confirmed on ${cams.length} cameras here</div></div><div class="kpi"><div class="v">${d.latest ? ago(d.latest) : '–'}</div><div class="l">most recent request</div></div></div>
       <div class="c311">${d.categories.map(([c, n]) => `<span>${esc(c)}</span><b>${n}</b><div class="bar"><i style="width:${Math.round(100 * n / mx)}%"></i></div>`).join('')}</div></div></div>`;
   }).join('');
@@ -163,7 +164,7 @@ function incCard(i) {
   const act = (st === 'confirmed' ? `<button class="btn sm act311" data-id="${i.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Create 311 case</button>` : '')
     + (v != null ? `<button class="btn sm ghost recheck" data-id="${i.id}" title="Ask Cosmos Reason again">Re-check</button>` : '');
   return `<div class="inc ${st}" data-src="${esc(i.source)}" data-chunk="${esc(i.original_video || '')}" data-start="${i.segment_start_sec ?? 0}"><div class="v"><video src="${clipUrl(i.source)}" poster="${thumbUrl(i.source)}" controls muted preload="none" loop playsinline></video><span class="chip ${st}">${st}</span><span class="when">at ${mmss(i.segment_start_sec)}</span></div>
-  <div class="b"><div class="t"><b>${esc(i.rule)}</b><span class="chip ${i.severity}">${i.severity}</span></div><div class="m">${nice(i.camera_id)} · ${city(i.location)}${i.detected_at ? ' · ' + ago(i.detected_at) : ''}</div>${verdict}<div class="cap">${esc(i.caption)}</div><div class="acts">${ctx}${act}</div></div></div>`;
+  <div class="b"><div class="t"><b><i class="rule-dot" style="color:${RULECOL[i.rule_id] || '#8a8a95'}"></i>${esc(i.rule)}</b><span class="chip ${i.severity}">${i.severity}</span></div><div class="m">${nice(i.camera_id)} · ${city(i.location)}${i.detected_at ? ' · ' + ago(i.detected_at) : ''}</div>${verdict}<div class="cap">${esc(i.caption)}</div><div class="acts">${ctx}${act}</div></div></div>`;
 }
 function renderIncidents(list) {
   const f = $('#i-filter').value;
@@ -293,8 +294,7 @@ const momentCard = (src, t, chunk, start) => `<div class="inc" data-src="${esc(s
 async function loadSystem() {
   const s = await api('system');
   const ok = b => `<span class="chip ${b ? 'ok' : 'incident'}">${b ? 'ready' : 'down'}</span>`;
-  $('#flow').innerHTML = [['Street cameras', 'video chunks → VAST S3'], ['Segmenter', '5 s clips'], ['YOLO11', 'objects, counts, boxes'], ['Cosmos Reason', 'operator captions'], ['Cosmos Embed1', '256-d vectors'], ['VastDB', 'vss-collection'], ['CityLens rules', 'candidates'], ['Cosmos verdict', 'yes / no + reason'], ['VastDB', 'citylens.incidents'], ['Agent + Weave', 'answers with evidence']]
-    .map(([n, d], i, a) => `<div class="n">${n}<small>${d}</small></div>${i < a.length - 1 ? '<span class="ar">→</span>' : ''}`).join('');
+  $('#arch').innerHTML = archSvg();
   const idx = s.index || {};
   $('#sys').innerHTML = `
   <div class="panel"><div class="h"><b>VAST AI OS · data layer</b>${ok(!idx.error)}</div><div class="c kv">
@@ -359,3 +359,38 @@ async function openCity(loc) {
   document.querySelectorAll('#c-wall .cam').forEach(el => el.onclick = () => { show('measure'); $('#m-cam').value = el.dataset.cam; $('#m-run').click(); });
 }
 if (location.hash.startsWith('#city/')) openCity(location.hash.slice(6));
+
+/* ---------- architecture diagram ---------- */
+function archSvg() {
+  const W = 1100, H = 560;
+  const C = { vast: '#9aa6ff', nv: '#3ecf8e', wb: '#f2a93b', cw: '#8a8a95', cl: '#ff4150', city: '#7cc4ff' };
+  // id, x, y, w, h, title, sub, color, built
+  const N = [
+    ['cams', 20, 40, 150, 58, 'Street cameras', 'SF · NYC · Toronto · Nashville', C.cw],
+    ['s3', 210, 40, 150, 58, 'VAST S3', 'clips, chunks', C.vast],
+    ['seg', 400, 40, 130, 58, 'Segmenter', '5 s clips', C.vast],
+    ['yolo', 570, 40, 140, 58, 'YOLO11', 'objects · counts · boxes', C.nv],
+    ['reason', 750, 40, 150, 58, 'Cosmos Reason', 'captions per clip', C.nv],
+    ['embed', 940, 40, 140, 58, 'Cosmos Embed1', '256-d vectors', C.nv],
+    ['vdb', 400, 170, 310, 70, 'VastDB · vss-collection', 'captions · vectors · counts · metadata', C.vast],
+    ['prompt', 750, 170, 330, 70, 'Operator prompt re-caption', 'flow · lane standing · pedestrians · work zones', C.cl, 1],
+    ['rules', 20, 310, 220, 70, 'Rules engine', '8 standing questions · hybrid search', C.cl, 1],
+    ['verify', 280, 310, 220, 70, 'Cosmos verdict', 'clip + pointed question → yes / no / why', C.cl, 1],
+    ['inc', 540, 310, 220, 70, 'VastDB · citylens.incidents', 'rule · verdict · reason · confidence', C.cl, 1],
+    ['act', 800, 310, 280, 70, 'Actions · citylens.actions', '311 case · re-check · permit triage', C.cl, 1],
+    ['c311', 20, 450, 220, 70, '311 open data', 'DataSF · NYC Open Data', C.city],
+    ['perm', 280, 450, 220, 70, 'Permit registers', 'Toronto RoDARS · SF street-use', C.city],
+    ['agent', 540, 450, 220, 70, 'Agent · GPT-OSS 120B', 'W&B Inference · traced in Weave', C.wb, 1],
+    ['ui', 800, 450, 280, 70, 'Operator workspace', 'overview · incidents · cameras · city view', C.cl, 1],
+  ];
+  const E = [['cams', 's3'], ['s3', 'seg'], ['seg', 'yolo'], ['yolo', 'reason'], ['reason', 'embed'], ['embed', 'vdb'], ['yolo', 'vdb'], ['reason', 'vdb'], ['prompt', 'reason'], ['vdb', 'rules'], ['rules', 'verify'], ['verify', 'inc'], ['inc', 'act'], ['inc', 'agent'], ['vdb', 'agent'], ['c311', 'ui'], ['perm', 'act'], ['agent', 'ui'], ['act', 'ui']];
+  const byId = Object.fromEntries(N.map(n => [n[0], n]));
+  const mid = n => [n[1] + n[3] / 2, n[2] + n[4] / 2];
+  const edge = ([a, b]) => { const A = byId[a], B = byId[b]; const [ax, ay] = mid(A), [bx, by] = mid(B); const sx = ay === by ? (bx > ax ? A[1] + A[3] : A[1]) : ax, sy = ay === by ? ay : (by > ay ? A[2] + A[4] : A[2]); const tx = ay === by ? (bx > ax ? B[1] : B[1] + B[3]) : bx, ty = ay === by ? by : (by > ay ? B[2] : B[2] + B[4]); const built = A[7] || B[7]; return `<path d="M${sx},${sy} C${sx + (tx - sx) / 2},${sy} ${sx + (tx - sx) / 2},${ty} ${tx},${ty}" fill="none" stroke="${built ? C.cl : '#3a3a44'}" stroke-width="1.5" stroke-opacity="${built ? .7 : .9}" marker-end="url(#ah${built ? 'r' : 'g'})"/>`; };
+  const node = n => `<g><rect x="${n[1]}" y="${n[2]}" width="${n[3]}" height="${n[4]}" rx="10" fill="${n[7] ? 'rgba(229,32,47,.10)' : '#16161a'}" stroke="${n[7] ? C.cl : '#2a2a31'}" stroke-width="${n[7] ? 1.5 : 1}"/><circle cx="${n[1] + 14}" cy="${n[2] + 16}" r="4" fill="${n[6]}"/><text x="${n[1] + 24}" y="${n[2] + 21}" fill="#f5f5f7" font-size="13" font-weight="700" font-family="Montserrat, sans-serif">${n[5]}</text><text x="${n[1] + 14}" y="${n[2] + 41}" fill="#8a8a95" font-size="11.5" font-family="Nunito Sans, sans-serif">${n[6]}</text></g>`;
+  const legend = [['VAST AI OS', C.vast], ['NVIDIA on CoreWeave', C.nv], ['Weights & Biases', C.wb], ['City open data', C.city], ['Built today', C.cl]].map(([t, c], i) => `<g transform="translate(${20 + i * 180},${H - 14})"><circle r="5" fill="${c}"/><text x="12" y="4" fill="#c7c7cf" font-size="12" font-family="Nunito Sans, sans-serif">${t}</text></g>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs><marker id="ahg" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="#3a3a44"/></marker><marker id="ahr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="${C.cl}"/></marker></defs>
+  <text x="20" y="22" fill="#8a8a95" font-size="11" letter-spacing="1.5" font-family="Montserrat, sans-serif" font-weight="700">INGEST · PRE-BUILT, RUNS ON EVERY CLIP</text>
+  <text x="20" y="292" fill="${C.cl}" font-size="11" letter-spacing="1.5" font-family="Montserrat, sans-serif" font-weight="700">CITYLENS · BUILT TODAY, RUNS ON WHAT MATTERS</text>
+  ${E.map(edge).join('')}${N.map(node).join('')}${legend}</svg>`;
+}
