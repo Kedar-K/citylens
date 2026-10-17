@@ -188,7 +188,7 @@ button{font:inherit}
 .kpi.amber::after{background:radial-gradient(circle,rgba(242,169,59,.25),transparent 70%)}.kpi.slate::after{background:radial-gradient(circle,rgba(154,166,255,.25),transparent 70%)}.kpi.blue::after{background:radial-gradient(circle,rgba(124,196,255,.22),transparent 70%)}
 .kpi.amber .v{color:var(--amber)}.kpi.slate .v{color:var(--slate)}.kpi.blue .v{color:#7cc4ff}
 .panel.t-amber .h{background:linear-gradient(90deg,rgba(242,169,59,.10),transparent 60%)}.panel.t-slate .h{background:linear-gradient(90deg,rgba(154,166,255,.12),transparent 60%)}.panel.t-red .h{background:linear-gradient(90deg,rgba(229,32,47,.12),transparent 60%)}.panel.t-green .h{background:linear-gradient(90deg,rgba(62,207,142,.10),transparent 60%)}.panel.t-blue .h{background:linear-gradient(90deg,rgba(124,196,255,.10),transparent 60%)}
-.rule-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 8px currentColor}
+.rule-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle;background:currentColor;box-shadow:0 0 8px currentColor}
 .c311 .bar i{background:linear-gradient(90deg,#f2a93b,#ff8fa3)}
 .cam .img .chip.incident{background:rgba(229,32,47,.85);color:#fff;border-color:transparent}.cam .img .chip.busy{background:rgba(242,169,59,.9);color:#1a1a1f;border-color:transparent}.cam .img .chip.normal{background:rgba(62,207,142,.85);color:#06211d;border-color:transparent}.cam .img .chip.quiet{background:rgba(154,166,255,.9);color:#101030;border-color:transparent}
 .chip.incident::before,.chip.busy::before,.chip.normal::before,.chip.quiet::before{background:currentColor}

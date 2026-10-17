@@ -34,7 +34,8 @@ _detect_jobs = {}
 
 
 def _warm():
-    """Keep the slow external feeds (311, permit registers) warm so city views open instantly."""
+    """Keep the slow external feeds (311, permit registers) warm so city views open instantly, and
+    prepare the browser copy of every chunk behind a confirmed incident so 30 s context plays at once."""
     while True:
         for loc in ("san_francisco", "new_york", "toronto"):
             try:
@@ -42,6 +43,15 @@ def _warm():
                 permit_data(loc)
             except Exception as e:
                 print("warm", loc, e)
+        try:
+            chunks = []
+            for inc in store.incidents(status="confirmed"):
+                if inc.get("original_video") and inc["original_video"] not in chunks:
+                    chunks.append(inc["original_video"])
+            for c in chunks:
+                _web_chunk_path(c)
+        except Exception as e:
+            print("warm chunks", e)
         time.sleep(240)
 
 
@@ -357,35 +367,42 @@ os.makedirs(_CLIP_DIR, exist_ok=True)
 _clip_locks = {}
 
 
-def _faststart_path(source):
-    """Parent chunks (30 s, ~35 MB) ship with the MP4 index at the end, so a browser must download the
-    whole file before it can play. Remux once (no re-encode) with the index up front and cache on disk."""
+def _web_chunk_path(source):
+    """Browser-playable copy of a parent chunk (30 s, up to 100 MB). Uploads are often HEVC, which most
+    browsers will not decode, and carry the MP4 index at the end, so the browser would download everything
+    before playing. H.264 chunks are remuxed with the index up front; anything else is transcoded to 720p
+    H.264. Done once per chunk and cached on local disk."""
     import hashlib
     import subprocess
     from app.thumbs import _ffmpeg
-    path = os.path.join(_CLIP_DIR, hashlib.sha1(source.encode()).hexdigest() + ".mp4")
+    path = os.path.join(_CLIP_DIR, hashlib.sha1(source.encode()).hexdigest() + "-web.mp4")
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return path
     lock = _clip_locks.setdefault(path, threading.Lock())
     with lock:
         if os.path.exists(path) and os.path.getsize(path) > 0:
             return path
-        raw = vss.fetch_clip(source)
-        src = path + ".src"  # ffmpeg needs a seekable input to find a trailing index
+        exe = _ffmpeg()
+        src = path + ".src"
         with open(src, "wb") as f:
-            f.write(raw)
-        tmp = path + ".part"
-        r = subprocess.run([_ffmpeg(), "-loglevel", "error", "-y", "-i", src, "-c", "copy", "-movflags", "+faststart", "-f", "mp4", tmp],
-                           capture_output=True, timeout=240)
+            f.write(vss.fetch_clip(source))
+        probe = subprocess.run([exe, "-hide_banner", "-i", src], capture_output=True, text=True).stderr
+        h264 = "Video: h264" in probe
+        tmp = path + ".part.mp4"
+        if h264:
+            args = ["-c:v", "copy", "-an"]
+        else:
+            args = ["-an", "-vf", "scale=-2:720", "-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p"]
+        r = subprocess.run([exe, "-loglevel", "error", "-y", "-i", src, *args, "-movflags", "+faststart", "-f", "mp4", tmp],
+                           capture_output=True, timeout=300)
         if r.returncode == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 0:
             os.replace(tmp, path)
             os.remove(src)
-        else:  # remux failed, serve the original bytes
-            print("faststart remux failed:", r.stderr[:200])
+        else:
+            print("chunk prepare failed:", r.stderr[:200])
             os.replace(src, path)
-    # keep the cache bounded
-    files = sorted((os.path.getmtime(os.path.join(_CLIP_DIR, f)), f) for f in os.listdir(_CLIP_DIR) if f.endswith(".mp4"))
-    for _, f in files[:-12]:
+    files = sorted((os.path.getmtime(os.path.join(_CLIP_DIR, f)), f) for f in os.listdir(_CLIP_DIR) if f.endswith("-web.mp4"))
+    for _, f in files[:-150]:
         try:
             os.remove(os.path.join(_CLIP_DIR, f))
         except OSError:
@@ -427,7 +444,7 @@ def clip(source: str, request: Request):
     """Stream a clip (5 s segment or 30 s parent chunk) from the video backend, passing Range through
     so the browser can seek. The browser never sees the backend token."""
     if "/segments/" not in source:  # parent chunk: serve the faststart remux from the local cache
-        return _send_file_range(_faststart_path(source), request)
+        return _send_file_range(_web_chunk_path(source), request)
     req = urllib.request.Request(vss.stream_url(source))
     rng = request.headers.get("range")
     if rng:
