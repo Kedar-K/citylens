@@ -15,6 +15,8 @@ import pyarrow as pa
 warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 VEHICLE = ("car", "truck", "bus", "motorcycle")
+FIXED = {"sf_streets_cam-1", "sf_streets_cam-2", "sf_streets_cam-3", "sf_streets_cam-4", "sf_streets_cam-5",
+         "nyc_streets_cam-1", "nyc_streets_cam-2", "neighborhood_cam-1"}
 INCIDENT_SCHEMA = pa.schema([
     ("id", pa.utf8()), ("detected_at", pa.utf8()), ("rule_id", pa.utf8()), ("rule", pa.utf8()),
     ("severity", pa.utf8()), ("camera_id", pa.utf8()), ("location", pa.utf8()),
@@ -73,6 +75,9 @@ class Store:
             self._rows_cache = (time.time(), out)
             return out
 
+    def reingested(self):
+        return sum(1 for r in self.rows() if "/reingest/" in (r.get("source") or ""))
+
     def cameras(self):
         cams = {}
         for r in self.rows():
@@ -93,6 +98,60 @@ class Store:
             out.append(c)
         return sorted(out, key=lambda c: (c["capture_type"] != "streets", c["location"], c["camera_id"]))
 
+    CITIES = {"san_francisco": ("San Francisco", 37.7749, -122.4194),
+              "new_york": ("New York", 40.7128, -74.0060),
+              "toronto": ("Toronto", 43.6532, -79.3832),
+              "nashville": ("Nashville", 36.1627, -86.7816)}
+
+    def overview(self, incidents, spark_points=40):
+        """Everything the Overview screen needs in one call."""
+        rows = self.rows()
+        cams = {}
+        for r in rows:
+            cams.setdefault(r["camera_id"], []).append(r)
+        conf = [i for i in incidents if i.get("status") == "confirmed"]
+        dis = [i for i in incidents if i.get("status") == "dismissed"]
+        by_cam = {}
+        for i in conf:
+            by_cam.setdefault(i["camera_id"], []).append(i)
+        cameras = []
+        for cam, rs in cams.items():
+            v = [x["vehicles"] for x in rs]
+            base = statistics.median(v) if v else 0
+            step = max(1, len(v) // spark_points)
+            spark = [round(sum(v[i:i + step]) / len(v[i:i + step]), 1) for i in range(0, len(v), step)]
+            recent = v[-12:]
+            ratio = (sum(recent) / len(recent) / base) if base and recent else None
+            n_inc = len(by_cam.get(cam, []))
+            status = "incident" if n_inc else ("busy" if ratio and ratio > 1.3 else ("quiet" if ratio and ratio < 0.6 else "normal"))
+            cameras.append({"camera_id": cam, "location": rs[0]["location"], "capture_type": rs[0]["capture_type"],
+                            "segments": len(rs), "minutes": round(sum((x.get("duration") or 5) for x in rs) / 60, 1),
+                            "baseline": base, "ratio": round(ratio, 2) if ratio else None, "status": status,
+                            "incidents": n_inc, "spark": spark, "latest_source": rs[-1]["source"],
+                            "people_median": statistics.median(x["people"] for x in rs),
+                            "fixed": cam in FIXED})
+        cameras.sort(key=lambda c: (not c["fixed"], {"incident": 0, "busy": 1, "normal": 2, "quiet": 3}[c["status"]], c["camera_id"]))
+        cities = []
+        for loc, (name, lat, lon) in self.CITIES.items():
+            cs = [c for c in cameras if c["location"] == loc]
+            if cs:
+                cities.append({"location": loc, "name": name, "lat": lat, "lon": lon, "cameras": len(cs),
+                               "minutes": round(sum(c["minutes"] for c in cs), 1),
+                               "incidents": sum(c["incidents"] for c in cs),
+                               "status": "incident" if any(c["status"] == "incident" for c in cs) else "normal"})
+        objects = {}
+        for r in rows:
+            for k, n in r["counts"].items():
+                objects[k] = objects.get(k, 0) + n
+        top_objects = sorted(objects.items(), key=lambda kv: -kv[1])[:8]
+        return {"kpis": {"cameras": len(cameras), "fixed_cameras": sum(c["fixed"] for c in cameras),
+                         "clips": len(rows), "minutes": round(sum(c["minutes"] for c in cameras)),
+                         "detections": sum(sum(r["counts"].values()) for r in rows),
+                         "incidents_confirmed": len(conf), "false_alarms_suppressed": len(dis),
+                         "cities": len(cities)},
+                "cities": cities, "cameras": cameras, "top_objects": top_objects,
+                "feed": conf[:12]}
+
     def measure(self, camera_id, window=12):
         """Per-segment vehicle/people series for one camera, with that camera's own baseline."""
         rows = [r for r in self.rows() if r["camera_id"] == camera_id]
@@ -112,7 +171,12 @@ class Store:
         full = series[window - 1:] or series  # only judge peaks on a full rolling window
         peak = max(full, key=lambda s: s["rolling"])
         quiet = min(full, key=lambda s: s["rolling"])
-        return {"camera_id": camera_id, "location": rows[0]["location"], "segments": len(rows),
+        mix = {}
+        for r in rows:
+            for k, n in r["counts"].items():
+                mix[k] = mix.get(k, 0) + n
+        mix = sorted(mix.items(), key=lambda kv: -kv[1])[:7]
+        return {"object_mix": mix,"camera_id": camera_id, "location": rows[0]["location"], "segments": len(rows),
                 "baseline_vehicles": base, "people_median": statistics.median(r["people"] for r in rows),
                 "current_ratio": series[-1]["ratio"], "peak": peak, "quiet": quiet,
                 "series": series}
