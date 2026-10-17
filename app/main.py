@@ -355,7 +355,7 @@ def _faststart_path(source):
         with open(src, "wb") as f:
             f.write(raw)
         tmp = path + ".part"
-        r = subprocess.run([_ffmpeg(), "-loglevel", "error", "-y", "-i", src, "-c", "copy", "-movflags", "+faststart", tmp],
+        r = subprocess.run([_ffmpeg(), "-loglevel", "error", "-y", "-i", src, "-c", "copy", "-movflags", "+faststart", "-f", "mp4", tmp],
                            capture_output=True, timeout=240)
         if r.returncode == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 0:
             os.replace(tmp, path)
