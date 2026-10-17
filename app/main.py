@@ -351,14 +351,18 @@ def _faststart_path(source):
         if os.path.exists(path) and os.path.getsize(path) > 0:
             return path
         raw = vss.fetch_clip(source)
+        src = path + ".src"  # ffmpeg needs a seekable input to find a trailing index
+        with open(src, "wb") as f:
+            f.write(raw)
         tmp = path + ".part"
-        subprocess.run([_ffmpeg(), "-loglevel", "error", "-y", "-i", "pipe:0", "-c", "copy", "-movflags", "+faststart", tmp],
-                       input=raw, capture_output=True, timeout=180)
-        if os.path.exists(tmp) and os.path.getsize(tmp) > 0:
+        r = subprocess.run([_ffmpeg(), "-loglevel", "error", "-y", "-i", src, "-c", "copy", "-movflags", "+faststart", tmp],
+                           capture_output=True, timeout=240)
+        if r.returncode == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 0:
             os.replace(tmp, path)
+            os.remove(src)
         else:  # remux failed, serve the original bytes
-            with open(path, "wb") as f:
-                f.write(raw)
+            print("faststart remux failed:", r.stderr[:200])
+            os.replace(src, path)
     # keep the cache bounded
     files = sorted((os.path.getmtime(os.path.join(_CLIP_DIR, f)), f) for f in os.listdir(_CLIP_DIR) if f.endswith(".mp4"))
     for _, f in files[:-40]:
