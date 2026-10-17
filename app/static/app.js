@@ -129,7 +129,8 @@ function incCard(i) {
   const verdict = v == null ? `<div class="verdict none"><span class="who">Cosmos</span><div>Not verified yet. <span class="conf">Similarity ${(+i.similarity || 0).toFixed(2)}</span></div></div>`
     : `<div class="verdict ${v}"><span class="who">Cosmos ${v}</span><div>${esc(i.reason)} <span class="conf">· ${Math.round((i.confidence || 0) * 100)}% sure · match ${(+i.similarity || 0).toFixed(2)}</span></div></div>`;
   const ctx = i.original_video ? `<div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div>` : '';
-  const act = st === 'confirmed' ? `<button class="btn sm act311" data-id="${i.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Create 311 case</button>` : '';
+  const act = (st === 'confirmed' ? `<button class="btn sm act311" data-id="${i.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Create 311 case</button>` : '')
+    + (v != null ? `<button class="btn sm ghost recheck" data-id="${i.id}" title="Ask Cosmos Reason again">Re-check</button>` : '');
   return `<div class="inc ${st}" data-src="${esc(i.source)}" data-chunk="${esc(i.original_video || '')}" data-start="${i.segment_start_sec ?? 0}"><div class="v"><video src="${clipUrl(i.source)}" poster="${thumbUrl(i.source)}" controls muted preload="none" loop playsinline></video><span class="chip ${st}">${st}</span><span class="when">at ${mmss(i.segment_start_sec)}</span></div>
   <div class="b"><div class="t"><b>${esc(i.rule)}</b><span class="chip ${i.severity}">${i.severity}</span></div><div class="m">${nice(i.camera_id)} · ${city(i.location)}${i.detected_at ? ' · ' + ago(i.detected_at) : ''}</div>${verdict}<div class="cap">${esc(i.caption)}</div><div class="acts">${ctx}${act}</div></div></div>`;
 }
@@ -145,6 +146,11 @@ function wireCards(root) {
     card.querySelectorAll('.ctx button').forEach(x => x.classList.toggle('on', x === b));
     if (b.dataset.mode === 'chunk') { v.loop = false; v.src = clipUrl(card.dataset.chunk) + '#t=' + Math.max(0, start - 5); v.play(); }
     else { v.loop = true; v.src = clipUrl(card.dataset.src); v.play(); }
+  });
+  root.querySelectorAll('.recheck').forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = 'Cosmos is watching…';
+    try { const r = await post('verify/' + b.dataset.id, {}); const card = b.closest('.inc'); card.outerHTML = incCard(r); wireCards(root); toast(`Re-checked: Cosmos says ${r.verdict} · ${r.reason}`); }
+    catch (e) { b.disabled = false; b.textContent = 'Re-check'; toast('Re-check failed: ' + e.message); }
   });
   root.querySelectorAll('.act311').forEach(b => b.onclick = async () => {
     b.disabled = true; b.textContent = 'Creating…';

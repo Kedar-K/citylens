@@ -220,10 +220,10 @@ class Store:
                 t = None
         return t or sch.create_table("incidents", columns=INCIDENT_SCHEMA)
 
-    def save_incidents(self, incidents):
+    def save_incidents(self, incidents, replace=False):
         if not incidents:
             return 0
-        existing = {i["id"] for i in self.incidents()}
+        existing = set() if replace else {i["id"] for i in self.incidents()}
         new = [i for i in incidents if i["id"] not in existing]
         if not new:
             return 0
@@ -243,11 +243,16 @@ class Store:
         return len(new)
 
     def incidents(self, status=None, camera_id=None, rule_id=None):
-        out = []
+        raw = []
         with self.session().transaction() as tx:
             t = self._incidents_table(tx)
             for batch in t.select(columns=INCIDENT_COLS):
-                out.extend(batch.to_pylist())
+                raw.extend(batch.to_pylist())
+        latest = {}
+        for r in raw:  # a re-check inserts a newer row with the same id; the newest verdict wins
+            if r["id"] not in latest or (r.get("detected_at") or "") > (latest[r["id"]].get("detected_at") or ""):
+                latest[r["id"]] = r
+        out = list(latest.values())
         if status:
             out = [i for i in out if i.get("status") == status]
         if camera_id:

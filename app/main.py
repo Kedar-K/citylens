@@ -192,9 +192,13 @@ def incidents(status: str | None = None, camera_id: str | None = None, rule_id: 
 
 @app.post("/api/verify/{incident_id}")
 def verify_one(incident_id: str):
+    """Re-check one incident: ask Cosmos again and store the new verdict (supersedes the old row)."""
     for inc in store.incidents():
         if inc["id"] == incident_id:
-            return verify_incident(vss, dict(inc))
+            fresh = verify_incident(vss, dict(inc))
+            fresh["detected_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            store.save_incidents([fresh], replace=True)
+            return fresh
     raise HTTPException(404, "unknown incident")
 
 
