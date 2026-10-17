@@ -49,7 +49,7 @@ async function loadOverview() {
   // map
   if (!map) {
     map = L.map('map', { zoomControl: false, attributionControl: false, scrollWheelZoom: false }).setView([39.5, -96], 4);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 12 }).addTo(map);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(map);
     L.control.attribution({ position: 'bottomleft', prefix: false }).addAttribution('Basemap © Esri').addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
   }
