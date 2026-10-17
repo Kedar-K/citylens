@@ -13,7 +13,7 @@ const city = l => CITY[l] || l || '';
 const mmss = s => s == null ? '' : Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
 const ago = iso => { if (!iso) return ''; const d = (Date.now() - Date.parse(iso)) / 1000; return d < 90 ? 'just now' : d < 3600 ? Math.round(d / 60) + ' min ago' : d < 86400 ? Math.round(d / 3600) + ' h ago' : Math.round(d / 86400) + ' d ago'; };
 const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 3500); };
-Chart.defaults.color = '#7d8a99'; Chart.defaults.font.family = 'Manrope, system-ui, sans-serif'; Chart.defaults.borderColor = '#232c37';
+Chart.defaults.color = '#8a8a95'; Chart.defaults.font.family = 'Geist, Inter, system-ui, sans-serif'; Chart.defaults.borderColor = 'rgba(255,255,255,.07)';
 
 /* navigation */
 const views = ['overview', 'incidents', 'investigate', 'measure', 'system'];
@@ -34,7 +34,7 @@ function spark(vals, base) {
   const X = i => (i / Math.max(vals.length - 1, 1)) * w, Y = v => h - 2 - (v / mx) * (h - 6);
   const line = vals.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('');
   const area = line + `L${w},${h}L0,${h}Z`;
-  return `<svg viewBox="0 0 ${w} ${h}"><path d="${area}" fill="rgba(94,234,212,.12)"/><path d="${line}" fill="none" stroke="#5eead4" stroke-width="1.6"/>${base ? `<line x1="0" x2="${w}" y1="${Y(base)}" y2="${Y(base)}" stroke="#7d8a99" stroke-dasharray="3 3" stroke-width="1"/>` : ''}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}"><path d="${area}" fill="rgba(229,32,47,.16)"/><path d="${line}" fill="none" stroke="#ff4150" stroke-width="1.6"/>${base ? `<line x1="0" x2="${w}" y1="${Y(base)}" y2="${Y(base)}" stroke="#8a8a95" stroke-dasharray="3 3" stroke-width="1"/>` : ''}</svg>`;
 }
 async function loadOverview() {
   OV = await api('overview');
@@ -56,11 +56,11 @@ async function loadOverview() {
   map.eachLayer(l => { if (l instanceof L.CircleMarker || l instanceof L.Marker) map.removeLayer(l); });
   const pts = [];
   for (const c of OV.cities) {
-    const col = c.status === 'incident' ? '#ff6b6b' : '#5eead4';
+    const col = c.status === 'incident' ? '#ff4150' : '#e4e4ea';
     const m = L.circleMarker([c.lat, c.lon], { radius: 7 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 2, fillColor: col, fillOpacity: .25 }).addTo(map);
     L.circleMarker([c.lat, c.lon], { radius: 3, color: col, fillColor: col, fillOpacity: 1, weight: 0 }).addTo(map);
     m.bindPopup(`<b>${c.name}</b><br>${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.minutes} min indexed<br>${c.incidents} confirmed incident${c.incidents === 1 ? '' : 's'}`);
-    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#7d8a99">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }), interactive: false }).addTo(map);
+    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#8a8a95">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }), interactive: false }).addTo(map);
     pts.push([c.lat, c.lon]);
   }
   if (pts.length) map.fitBounds(pts, { padding: [50, 90], maxZoom: 6 });
@@ -158,14 +158,14 @@ $('#m-run').onclick = async () => {
   $('#m-sub').textContent = `${nice(cam)} · ${(m.segments * 5 / 60).toFixed(0)} min of footage`;
   const labels = m.series.map(s => (s.i * 5 / 60).toFixed(1));
   cFlow?.destroy(); cFlow = new Chart($('#c-flow'), { type: 'bar', data: { labels, datasets: [
-    { type: 'line', label: 'rolling minute', data: m.series.map(s => s.rolling), borderColor: '#5eead4', backgroundColor: 'rgba(94,234,212,.15)', fill: true, pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 2 },
-    { label: 'per clip', data: m.series.map(s => s.vehicles), backgroundColor: '#2c3744', borderWidth: 0, barPercentage: 1, categoryPercentage: .9 },
-    { type: 'line', label: 'normal', data: m.series.map(() => m.baseline_vehicles), borderColor: '#7d8a99', borderDash: [5, 5], pointRadius: 0, borderWidth: 1 }] },
-    options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => 'minute ' + it[0].label } } }, scales: { x: { ticks: { maxTicksLimit: 10, callback: (v, i) => labels[i] + ' min' }, grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#1b222c' } } }, onClick: (e, els) => { if (els.length) { const s = m.series[els[0].index]; $('#m-moments').innerHTML = momentCard(s.source, `Minute ${(s.i * 5 / 60).toFixed(1)} · ${s.vehicles} vehicles, ${s.people} people in this clip`); } } } });
-  const mixCols = ['#5eead4', '#7cb8ff', '#ffb454', '#ff6b6b', '#4ade80', '#c084fc', '#7d8a99'];
+    { type: 'line', label: 'rolling minute', data: m.series.map(s => s.rolling), borderColor: '#ff4150', backgroundColor: 'rgba(229,32,47,.16)', fill: true, pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 2 },
+    { label: 'per clip', data: m.series.map(s => s.vehicles), backgroundColor: '#2a2a31', borderWidth: 0, barPercentage: 1, categoryPercentage: .9 },
+    { type: 'line', label: 'normal', data: m.series.map(() => m.baseline_vehicles), borderColor: '#8a8a95', borderDash: [5, 5], pointRadius: 0, borderWidth: 1 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => 'minute ' + it[0].label } } }, scales: { x: { ticks: { maxTicksLimit: 10, callback: (v, i) => labels[i] + ' min' }, grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' } } }, onClick: (e, els) => { if (els.length) { const s = m.series[els[0].index]; $('#m-moments').innerHTML = momentCard(s.source, `Minute ${(s.i * 5 / 60).toFixed(1)} · ${s.vehicles} vehicles, ${s.people} people in this clip`); } } } });
+  const mixCols = ['#ff4150', '#f5f5f7', '#9aa6ff', '#f2a93b', '#3ecf8e', '#8a8a95', '#4a4a55'];
   cMix?.destroy(); cMix = new Chart($('#c-mix'), { type: 'doughnut', data: { labels: m.object_mix.map(o => o[0]), datasets: [{ data: m.object_mix.map(o => o[1]), backgroundColor: mixCols, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true, padding: 12 } } } } });
   const cmp = ov.cameras.filter(c => c.ratio != null);
-  cCmp?.destroy(); cCmp = new Chart($('#c-cmp'), { type: 'bar', data: { labels: cmp.map(c => nice(c.camera_id)), datasets: [{ data: cmp.map(c => c.ratio), backgroundColor: cmp.map(c => c.camera_id === cam ? '#5eead4' : c.ratio > 1.3 ? '#ffb454' : '#2c3744'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: it => it.raw + '× its normal' } } }, scales: { x: { beginAtZero: true, grid: { color: '#1b222c' }, ticks: { callback: v => v + '×' } }, y: { grid: { display: false } } }, onClick: (e, els) => { if (els.length) { $('#m-cam').value = cmp[els[0].index].camera_id; $('#m-run').click(); } } } });
+  cCmp?.destroy(); cCmp = new Chart($('#c-cmp'), { type: 'bar', data: { labels: cmp.map(c => nice(c.camera_id)), datasets: [{ data: cmp.map(c => c.ratio), backgroundColor: cmp.map(c => c.camera_id === cam ? '#ff4150' : c.ratio > 1.3 ? '#f2a93b' : '#2a2a31'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: it => it.raw + '× its normal' } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' }, ticks: { callback: v => v + '×' } }, y: { grid: { display: false } } }, onClick: (e, els) => { if (els.length) { $('#m-cam').value = cmp[els[0].index].camera_id; $('#m-run').click(); } } } });
   $('#m-moments').innerHTML = momentCard(m.peak.source, `Busiest minute · ${m.peak.rolling} vehicles per clip (${peakX}× normal)`) + momentCard(m.quiet.source, `Quietest minute · ${m.quiet.rolling} vehicles per clip`);
 };
 const momentCard = (src, t) => `<div class="inc"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(t)}</div></div></div>`;

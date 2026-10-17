@@ -28,6 +28,7 @@ kind: Deployment
 metadata: {name: ${APP}, labels: {app: ${APP}}}
 spec:
   replicas: 1
+  strategy: {type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}
   selector: {matchLabels: {app: ${APP}}}
   template:
     metadata: {labels: {app: ${APP}}}

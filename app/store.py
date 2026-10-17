@@ -227,5 +227,6 @@ class Store:
             out = [i for i in out if i.get("camera_id") == camera_id]
         if rule_id:
             out = [i for i in out if i.get("rule_id") == rule_id]
-        out.sort(key=lambda i: (i.get("detected_at") or "", -(i.get("confidence") or 0)), reverse=True)
+        rank = {"confirmed": 0, "candidate": 1, "dismissed": 2}
+        out.sort(key=lambda i: (rank.get(i.get("status"), 3), -(i.get("confidence") or 0), i.get("detected_at") or ""))
         return out
