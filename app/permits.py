@@ -105,14 +105,34 @@ def near(items, lat, lon, radius=300):
     return sorted(out, key=lambda p: p["distance_m"])
 
 
-def triage(incident, camera_pos, items, radius=300):
-    """Camera saw street work: is there a permit on file for that spot right now?"""
+def _streets(intersection):
+    return [w.strip().lower() for w in re.split(r"&|/| and ", intersection or "") if w.strip()]
+
+
+def _mentions(p, streets):
+    text = " ".join(str(p.get(k) or "") for k in ("road", "where", "description")).lower()
+    return any(st and st in text for st in streets)
+
+
+def triage(incident, camera_pos, items, radius=120, wide=300):
+    """Camera saw street work: is there a permit on file for that spot right now?
+
+    Grades, strict to loose. A permit "on file" must be close AND name one of the camera's own streets;
+    anything merely nearby is a possible match for the operator to confirm. Dense downtowns have permits
+    on every block, so proximity alone proves nothing."""
     if not camera_pos:
         return {"status": "no_location", "note": "camera has no registered position"}
-    matches = near(items, camera_pos[1], camera_pos[2], radius)
-    if matches:
-        m = matches[0]
-        return {"status": "permitted", "match": m, "candidates": len(matches),
-                "note": f"{m['permit_type'] or m['kind']} on file {m['distance_m']} m away: {m['where']}"}
-    return {"status": "no_permit", "candidates": 0,
-            "note": f"no active permit or restriction within {radius} m of the camera. Possible unpermitted work."}
+    streets = _streets(camera_pos[0])
+    close = near(items, camera_pos[1], camera_pos[2], radius)
+    strong = [p for p in close if _mentions(p, streets)]
+    nearby = near(items, camera_pos[1], camera_pos[2], wide)
+    if strong:
+        m = strong[0]
+        return {"status": "permitted", "match": m, "candidates": len(nearby), "nearest": nearby[:3],
+                "note": f"{m['permit_type'] or m['kind']} on {m['road']} {m['distance_m']} m away, active {m['start'] or ''}{(' to ' + m['end']) if m['end'] else ''}: {m['description'] or m['where']}"}
+    if nearby:
+        m = nearby[0]
+        return {"status": "possible", "match": m, "candidates": len(nearby), "nearest": nearby[:3],
+                "note": f"{len(nearby)} active within {wide} m but none on {' or '.join(streets) or 'this street'}; nearest is {m['permit_type'] or m['kind']} on {m['road']} {m['distance_m']} m away. Operator to confirm."}
+    return {"status": "no_permit", "candidates": 0, "nearest": [],
+            "note": f"no active permit or restriction within {wide} m of the camera. Possible unpermitted work."}

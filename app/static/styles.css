@@ -171,3 +171,4 @@ button{font:inherit}
 .tri .t{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tri .s{color:var(--muted);font-size:12px;margin-top:3px}.tri .r{font-size:12.5px;color:var(--text2);margin-top:5px}
 .chip.permitted{background:var(--green-dim);color:var(--green);border-color:rgba(62,207,142,.22)}.chip.no_permit{background:var(--red-dim);color:var(--red2);border-color:rgba(229,32,47,.3)}.chip.no_location{background:var(--panel3);color:var(--muted)}
 .leaflet-permit{background:none;border:0}
+.chip.possible{background:var(--amber-dim);color:var(--amber);border-color:rgba(242,169,59,.25)}
