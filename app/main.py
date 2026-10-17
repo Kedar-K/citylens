@@ -5,8 +5,8 @@ import sys
 import time
 import urllib.request
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -17,6 +17,7 @@ from app.detect import run_rules  # noqa: E402
 from app.verify import verify_incident  # noqa: E402
 from app.agent import Agent, traced  # noqa: E402
 from app.thumbs import thumbnail  # noqa: E402
+from app.city import city as city_data  # noqa: E402
 import threading, uuid  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -128,6 +129,14 @@ def overview():
     return store.overview(store.incidents())
 
 
+@app.get("/api/city")
+def city(location: str):
+    d = city_data(location)
+    if d is None:
+        raise HTTPException(404, "no open-data source for this location")
+    return d
+
+
 @app.get("/api/thumb")
 def thumb(source: str):
     data = thumbnail(vss, source)
@@ -219,13 +228,51 @@ def ask(req: AskReq):
 
 
 @app.get("/api/clip")
-def clip(source: str, request_range: str | None = None):
-    """Proxy a segment clip from the video backend so the browser never needs the backend token."""
+def clip(source: str, request: Request):
+    """Stream a clip (5 s segment or 30 s parent chunk) from the video backend, passing Range through
+    so the browser can seek. The browser never sees the backend token."""
     req = urllib.request.Request(vss.stream_url(source))
-    with urllib.request.urlopen(req, timeout=120) as r:
-        data = r.read()
-    return Response(content=data, media_type="video/mp4",
-                    headers={"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"})
+    rng = request.headers.get("range")
+    if rng:
+        req.add_header("Range", rng)
+    upstream = urllib.request.urlopen(req, timeout=300)
+    status = upstream.status
+    headers = {"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"}
+    for h in ("Content-Range", "Content-Length"):
+        if upstream.headers.get(h):
+            headers[h] = upstream.headers[h]
+
+    def gen():
+        try:
+            while True:
+                chunk = upstream.read(256 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            upstream.close()
+    return StreamingResponse(gen(), status_code=status, media_type="video/mp4", headers=headers)
+
+
+class ActionReq(BaseModel):
+    incident_id: str
+    kind: str = "311_case"
+    note: str | None = None
+
+
+@app.post("/api/actions")
+def create_action(req: ActionReq):
+    """Turn a confirmed incident into an action record (a 311 case or a dispatch). Stored in VastDB.
+    Demo mode: the case is recorded, not transmitted to a city system."""
+    inc = next((i for i in store.incidents() if i["id"] == req.incident_id), None)
+    if not inc:
+        raise HTTPException(404, "unknown incident")
+    return store.create_action(inc, req.kind, req.note)
+
+
+@app.get("/api/actions")
+def list_actions():
+    return store.actions()
 
 
 if __name__ == "__main__":

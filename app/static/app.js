@@ -69,11 +69,43 @@ async function loadOverview() {
   $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t">${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
     : '<div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div>';
   document.querySelectorAll('.fitem').forEach(el => el.onclick = () => { show('incidents'); $('#i-filter').value = 'confirmed'; $('#i-stored').click(); });
+  // city services (311) for cities that publish open data
+  loadCity();
   // wall
   $('#wall').innerHTML = OV.cameras.map(c => `<div class="cam" data-cam="${c.camera_id}"><div class="img"><img src="${thumbUrl(c.latest_source)}" loading="lazy" alt=""><span class="chip ${c.status}">${c.status === 'incident' ? c.incidents + ' incident' + (c.incidents > 1 ? 's' : '') : c.status}</span><span class="id">${c.fixed ? 'fixed' : c.capture_type}</span></div>
     <div class="b"><div><div class="n">${nice(c.camera_id)}</div><div class="m">${city(c.location)} · ${c.minutes} min · ${c.ratio != null ? c.ratio + '× normal' : ''}</div></div>${spark(c.spark, c.baseline)}</div></div>`).join('');
   document.querySelectorAll('.cam').forEach(el => el.onclick = () => { show('measure'); $('#m-cam').value = el.dataset.cam; $('#m-run').click(); });
 }
+
+let layer311 = null, CITYDATA = {};
+async function loadCity() {
+  const locs = OV.cities.map(c => c.location).filter(l => ['san_francisco', 'new_york'].includes(l));
+  const res = await Promise.all(locs.map(l => api('city?location=' + l).catch(() => null)));
+  CITYDATA = {}; res.forEach((d, i) => { if (d) CITYDATA[locs[i]] = d; });
+  $('#city').innerHTML = Object.values(CITYDATA).map(d => {
+    if (d.error) return `<div class="panel"><div class="h"><b>${esc(d.name)}</b><span>unavailable</span></div><div class="c empty">${esc(d.error)}</div></div>`;
+    const mx = d.categories[0]?.[1] || 1;
+    const cams = OV.cameras.filter(c => c.location === d.location);
+    const inc = cams.reduce((a, c) => a + c.incidents, 0);
+    return `<div class="panel"><div class="h"><b>${esc(d.name)} · what residents report</b><span>${d.total} latest requests · ${esc(d.attribution)} · ${d.fetched_at}</span></div><div class="c">
+      <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px"><div class="kpi"><div class="v">${d.street_related}</div><div class="l">street-related requests a camera could corroborate</div></div><div class="kpi red"><div class="v">${inc}</div><div class="l">incidents CityLens confirmed on ${cams.length} cameras here</div></div><div class="kpi"><div class="v">${d.latest ? ago(d.latest) : '–'}</div><div class="l">most recent request</div></div></div>
+      <div class="c311">${d.categories.map(([c, n]) => `<span>${esc(c)}</span><b>${n}</b><div class="bar"><i style="width:${Math.round(100 * n / mx)}%"></i></div>`).join('')}</div></div></div>`;
+  }).join('');
+  if ($('#l311').checked) draw311();
+}
+function draw311() {
+  if (layer311) { map.removeLayer(layer311); layer311 = null; }
+  if (!$('#l311').checked) return;
+  layer311 = L.layerGroup();
+  for (const d of Object.values(CITYDATA)) for (const c of (d.cases || [])) {
+    L.circleMarker([c.lat, c.lon], { radius: 3, color: '#f2a93b', weight: 0, fillColor: '#f2a93b', fillOpacity: .75 })
+      .bindPopup(`<b>${esc(c.category)}</b>${c.detail ? '<br>' + esc(c.detail) : ''}<br><span style="color:#8a8a95">${esc(c.where || '')} · ${ago(c.when)} · ${esc(c.status || '')}</span>`).addTo(layer311);
+  }
+  layer311.addTo(map);
+  const first = Object.values(CITYDATA).find(d => d.cases?.length);
+  if (first && map.getZoom() < 9) { const c = OV.cities.find(x => x.location === first.location); if (c) map.flyTo([c.lat, c.lon], 12, { duration: .8 }); }
+}
+$('#l311').onchange = draw311;
 
 /* ---------- incidents ---------- */
 let RULES = [], CAMS = [];
@@ -81,13 +113,29 @@ function incCard(i) {
   const st = i.status || 'candidate', v = i.verdict;
   const verdict = v == null ? `<div class="verdict none"><span class="who">Cosmos</span><div>Not verified yet. <span class="conf">Similarity ${(+i.similarity || 0).toFixed(2)}</span></div></div>`
     : `<div class="verdict ${v}"><span class="who">Cosmos ${v}</span><div>${esc(i.reason)} <span class="conf">· ${Math.round((i.confidence || 0) * 100)}% sure · match ${(+i.similarity || 0).toFixed(2)}</span></div></div>`;
-  return `<div class="inc ${st}"><div class="v"><video src="${clipUrl(i.source)}" poster="${thumbUrl(i.source)}" controls muted preload="none" loop playsinline></video><span class="chip ${st}">${st}</span><span class="when">at ${mmss(i.segment_start_sec)}</span></div>
-  <div class="b"><div class="t"><b>${esc(i.rule)}</b><span class="chip ${i.severity}">${i.severity}</span></div><div class="m">${nice(i.camera_id)} · ${city(i.location)}${i.detected_at ? ' · ' + ago(i.detected_at) : ''}</div>${verdict}<div class="cap">${esc(i.caption)}</div></div></div>`;
+  const ctx = i.original_video ? `<div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div>` : '';
+  const act = st === 'confirmed' ? `<button class="btn sm act311" data-id="${i.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Create 311 case</button>` : '';
+  return `<div class="inc ${st}" data-src="${esc(i.source)}" data-chunk="${esc(i.original_video || '')}" data-start="${i.segment_start_sec ?? 0}"><div class="v"><video src="${clipUrl(i.source)}" poster="${thumbUrl(i.source)}" controls muted preload="none" loop playsinline></video><span class="chip ${st}">${st}</span><span class="when">at ${mmss(i.segment_start_sec)}</span></div>
+  <div class="b"><div class="t"><b>${esc(i.rule)}</b><span class="chip ${i.severity}">${i.severity}</span></div><div class="m">${nice(i.camera_id)} · ${city(i.location)}${i.detected_at ? ' · ' + ago(i.detected_at) : ''}</div>${verdict}<div class="cap">${esc(i.caption)}</div><div class="acts">${ctx}${act}</div></div></div>`;
 }
 function renderIncidents(list) {
   const f = $('#i-filter').value;
   const L2 = f ? list.filter(i => i.status === f) : list;
   $('#i-grid').innerHTML = L2.length ? L2.map(incCard).join('') : '<div class="empty">Nothing here.</div>';
+  wireCards($('#i-grid'));
+}
+function wireCards(root) {
+  root.querySelectorAll('.ctx button').forEach(b => b.onclick = () => {
+    const card = b.closest('.inc'), v = card.querySelector('video'), start = +card.dataset.start || 0;
+    card.querySelectorAll('.ctx button').forEach(x => x.classList.toggle('on', x === b));
+    if (b.dataset.mode === 'chunk') { v.loop = false; v.src = clipUrl(card.dataset.chunk) + '#t=' + Math.max(0, start - 5); v.play(); }
+    else { v.loop = true; v.src = clipUrl(card.dataset.src); v.play(); }
+  });
+  root.querySelectorAll('.act311').forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = 'Creating…';
+    try { const a = await post('actions', { incident_id: b.dataset.id }); b.outerHTML = `<span class="done">✓ Case ${esc(a.reference)} recorded · ${esc(a.summary.split(':')[0])}</span>`; toast(`311 case ${a.reference} recorded in VastDB (demo mode, not transmitted)`); }
+    catch (e) { b.disabled = false; b.textContent = 'Create 311 case'; toast('Could not create case: ' + e.message); }
+  });
 }
 let lastList = [];
 async function loadIncidents() {
@@ -161,20 +209,22 @@ $('#m-run').onclick = async () => {
   const peakX = (m.peak.rolling / (m.baseline_vehicles || 1)).toFixed(1);
   $('#m-kpis').innerHTML = [[m.baseline_vehicles, "vehicles per clip, this camera's normal", ''], [m.peak.rolling, 'busiest minute, vehicles per clip', 'red'], [peakX + '×', 'peak vs normal', ''], [m.current_ratio + '×', 'last minute vs normal', m.current_ratio > 1.3 ? 'red' : 'green'], [m.people_median, 'people per clip, typical', ''], [m.segments, '5-second clips measured', 'teal']]
     .map(([v, l, c]) => `<div class="kpi ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
-  $('#m-sub').textContent = `${nice(cam)} · ${(m.segments * 5 / 60).toFixed(0)} min of footage`;
+  $('#m-sub').textContent = `${nice(cam)} · ${(m.segments * 5 / 60).toFixed(0)} min of footage · vehicles and people per 5 s clip`;
   const labels = m.series.map(s => (s.i * 5 / 60).toFixed(1));
   cFlow?.destroy(); cFlow = new Chart($('#c-flow'), { type: 'bar', data: { labels, datasets: [
     { type: 'line', label: 'rolling minute', data: m.series.map(s => s.rolling), borderColor: '#ff4150', backgroundColor: 'rgba(229,32,47,.16)', fill: true, pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 2 },
     { label: 'per clip', data: m.series.map(s => s.vehicles), backgroundColor: '#2a2a31', borderWidth: 0, barPercentage: 1, categoryPercentage: .9 },
+    { type: 'line', label: 'people (rolling)', data: m.series.map((x, i, a) => { const w = a.slice(Math.max(0, i - 11), i + 1); return +(w.reduce((p, y) => p + y.people, 0) / w.length).toFixed(1); }), borderColor: '#9aa6ff', pointRadius: 0, pointHitRadius: 8, tension: .3, borderWidth: 1.5 },
     { type: 'line', label: 'normal', data: m.series.map(() => m.baseline_vehicles), borderColor: '#8a8a95', borderDash: [5, 5], pointRadius: 0, borderWidth: 1 }] },
-    options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => 'minute ' + it[0].label } } }, scales: { x: { ticks: { maxTicksLimit: 10, callback: (v, i) => labels[i] + ' min' }, grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' } } }, onClick: (e, els) => { if (els.length) { const s = m.series[els[0].index]; $('#m-moments').innerHTML = momentCard(s.source, `Minute ${(s.i * 5 / 60).toFixed(1)} · ${s.vehicles} vehicles, ${s.people} people in this clip`); } } } });
+    options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => 'minute ' + it[0].label } } }, scales: { x: { ticks: { maxTicksLimit: 10, callback: (v, i) => labels[i] + ' min' }, grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' } } }, onClick: (e, els) => { if (els.length) { const s = m.series[els[0].index]; $('#m-moments').innerHTML = momentCard(s.source, `Minute ${(s.i * 5 / 60).toFixed(1)} · ${s.vehicles} vehicles, ${s.people} people in this clip`, s.original_video, s.seg ? (s.seg - 1) * 5 : 0); wireCards($('#m-moments')); } } } });
   const mixCols = ['#ff4150', '#f5f5f7', '#9aa6ff', '#f2a93b', '#3ecf8e', '#8a8a95', '#4a4a55'];
   cMix?.destroy(); cMix = new Chart($('#c-mix'), { type: 'doughnut', data: { labels: m.object_mix.map(o => o[0]), datasets: [{ data: m.object_mix.map(o => o[1]), backgroundColor: mixCols, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true, padding: 12 } } } } });
   const cmp = ov.cameras.filter(c => c.ratio != null);
   cCmp?.destroy(); cCmp = new Chart($('#c-cmp'), { type: 'bar', data: { labels: cmp.map(c => nice(c.camera_id)), datasets: [{ data: cmp.map(c => c.ratio), backgroundColor: cmp.map(c => c.camera_id === cam ? '#ff4150' : c.ratio > 1.3 ? '#f2a93b' : '#2a2a31'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: it => it.raw + '× its normal' } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' }, ticks: { callback: v => v + '×' } }, y: { grid: { display: false } } }, onClick: (e, els) => { if (els.length) { $('#m-cam').value = cmp[els[0].index].camera_id; $('#m-run').click(); } } } });
-  $('#m-moments').innerHTML = momentCard(m.peak.source, `Busiest minute · ${m.peak.rolling} vehicles per clip (${peakX}× normal)`) + momentCard(m.quiet.source, `Quietest minute · ${m.quiet.rolling} vehicles per clip`);
+  $('#m-moments').innerHTML = momentCard(m.peak.source, `Busiest minute · ${m.peak.rolling} vehicles per clip (${peakX}× normal)`, m.peak.original_video, m.peak.seg ? (m.peak.seg - 1) * 5 : 0) + momentCard(m.quiet.source, `Quietest minute · ${m.quiet.rolling} vehicles per clip`, m.quiet.original_video, m.quiet.seg ? (m.quiet.seg - 1) * 5 : 0);
+  wireCards($('#m-moments'));
 };
-const momentCard = (src, t) => `<div class="inc"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(t)}</div></div></div>`;
+const momentCard = (src, t, chunk, start) => `<div class="inc" data-src="${esc(src)}" data-chunk="${esc(chunk || '')}" data-start="${start ?? 0}"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(t)}</div>${chunk ? '<div class="acts"><div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div></div>' : ''}</div></div>`;
 
 /* ---------- system ---------- */
 async function loadSystem() {

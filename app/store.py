@@ -25,6 +25,16 @@ INCIDENT_SCHEMA = pa.schema([
     ("reason", pa.utf8()), ("caption", pa.utf8()), ("status", pa.utf8()),
 ])
 INCIDENT_COLS = [f.name for f in INCIDENT_SCHEMA]
+ACTION_SCHEMA = pa.schema([
+    ("id", pa.utf8()), ("created_at", pa.utf8()), ("kind", pa.utf8()), ("reference", pa.utf8()),
+    ("incident_id", pa.utf8()), ("rule", pa.utf8()), ("camera_id", pa.utf8()), ("location", pa.utf8()),
+    ("source", pa.utf8()), ("summary", pa.utf8()), ("note", pa.utf8()), ("status", pa.utf8()),
+])
+ACTION_COLS = [f.name for f in ACTION_SCHEMA]
+CASE_CATEGORY = {"lane_blocked": "Blocked travel lane", "pedestrian_conflict": "Pedestrian safety",
+                 "cyclist_squeeze": "Cyclist safety", "congestion": "Traffic congestion",
+                 "work_zone": "Street work / permit check", "lane_closure": "Lane closure / permit check",
+                 "garbage_dumping": "Illegal dumping / street cleaning", "person_down": "Person down / medical"}
 
 
 class Store:
@@ -230,3 +240,40 @@ class Store:
         rank = {"confirmed": 0, "candidate": 1, "dismissed": 2}
         out.sort(key=lambda i: (rank.get(i.get("status"), 3), -(i.get("confidence") or 0), i.get("detected_at") or ""))
         return out
+
+    # -- actions ------------------------------------------------------------
+    def _table(self, tx, name, schema, cols):
+        b = tx.bucket(self.bucket)
+        sch = b.schema("citylens", fail_if_missing=False) or b.create_schema("citylens")
+        t = sch.table(name, fail_if_missing=False)
+        if t is not None:
+            have = t.columns() if callable(t.columns) else t.columns
+            if {c.name for c in have} != set(cols):
+                t.drop()
+                t = None
+        return t or sch.create_table(name, columns=schema)
+
+    def actions(self):
+        out = []
+        with self.session().transaction() as tx:
+            for batch in self._table(tx, "actions", ACTION_SCHEMA, ACTION_COLS).select(columns=ACTION_COLS):
+                out.extend(batch.to_pylist())
+        out.sort(key=lambda a: a.get("created_at") or "", reverse=True)
+        return out
+
+    def create_action(self, inc, kind="311_case", note=None):
+        import hashlib
+        existing = [a for a in self.actions() if a["incident_id"] == inc["id"] and a["kind"] == kind]
+        if existing:
+            return existing[0]
+        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        ref = ("CL-" if kind == "311_case" else "DX-") + hashlib.sha1(f"{inc['id']}{kind}".encode()).hexdigest()[:6].upper()
+        row = {"id": hashlib.sha256(f"{inc['id']}|{kind}".encode()).hexdigest()[:16], "created_at": ts, "kind": kind,
+               "reference": ref, "incident_id": inc["id"], "rule": inc.get("rule"), "camera_id": inc.get("camera_id"),
+               "location": inc.get("location"), "source": inc.get("source"),
+               "summary": f"{CASE_CATEGORY.get(inc.get('rule_id'), inc.get('rule'))}: {inc.get('reason') or ''}".strip(),
+               "note": note or "", "status": "recorded (demo: not transmitted to the city)"}
+        with self.session().transaction() as tx:
+            self._table(tx, "actions", ACTION_SCHEMA, ACTION_COLS).insert(
+                pa.table({k: [row[k]] for k in ACTION_COLS}, schema=ACTION_SCHEMA))
+        return row

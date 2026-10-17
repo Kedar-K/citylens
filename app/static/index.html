@@ -27,9 +27,10 @@
   <div class="top"><div><h1>Network overview</h1><p>Every camera watched. Only what matters surfaces.</p></div><div class="live"><i></i><span id="live-txt">Watching 8 street cameras</span></div></div>
   <div class="kpis" id="kpis"></div>
   <div class="row2">
-    <div class="panel"><div class="h"><b>Camera network</b><span id="map-sub"></span></div><div id="map"></div></div>
+    <div class="panel"><div class="h"><b>Camera network</b><span><label class="layer"><input type="checkbox" id="l311"> 311 requests, last 400 per city</label> &nbsp; <span id="map-sub"></span></span></div><div id="map"></div></div>
     <div class="panel"><div class="h"><b>Incident feed</b><span>Verified by Cosmos Reason</span></div><div class="feed" id="feed"><div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div></div></div>
   </div>
+  <div class="city" id="city"></div>
   <div class="panel"><div class="h"><b>Camera wall</b><span>Load vs each camera's own normal</span></div><div class="c"><div class="wall" id="wall"></div></div></div>
 </section>
 
@@ -53,7 +54,7 @@
   <div class="bar"><select class="sel" id="m-cam"></select><button class="btn" id="m-run">Measure</button></div>
   <div class="kpis" id="m-kpis"></div>
   <div class="m3">
-    <div class="panel"><div class="h"><b>Vehicles per clip</b><span id="m-sub"></span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-flow"></canvas></div><div class="legend"><span><i style="background:#ff4150"></i>rolling minute</span><span><i style="background:#2a2a31"></i>per clip</span><span><i style="background:#8a8a95"></i>this camera's normal</span></div></div></div>
+    <div class="panel"><div class="h"><b>Vehicles per clip</b><span id="m-sub"></span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-flow"></canvas></div><div class="legend"><span><i style="background:#ff4150"></i>vehicles, rolling minute</span><span><i style="background:#9aa6ff"></i>people, rolling minute</span><span><i style="background:#2a2a31"></i>per clip</span><span><i style="background:#8a8a95"></i>this camera's normal</span></div></div></div>
     <div class="panel"><div class="h"><b>What the camera sees</b><span>object mix</span></div><div class="c"><div class="ch" style="height:240px"><canvas id="c-mix"></canvas></div></div></div>
   </div>
   <div class="m3">

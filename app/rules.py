@@ -60,6 +60,23 @@ RULES = [
                    "vehicles to merge or go around? Cones on the sidewalk or a parked truck alone do NOT count."),
         "extra_cameras": ["pie_cam-3"],
     },
+    {
+        "id": "garbage_dumping",
+        "name": "Dumped garbage or debris on the street",
+        "severity": "low",
+        "query": "piles of garbage bags, dumped furniture or debris left on the sidewalk or curb",
+        "min_similarity": 0.30,
+        "verify": ("Is there dumped garbage, a pile of trash bags, discarded furniture or debris on the sidewalk, "
+                   "curb or road? A single public bin or a parked vehicle does NOT count."),
+    },
+    {
+        "id": "person_down",
+        "name": "Person lying on the ground",
+        "severity": "high",
+        "query": "a person lying on the ground on the sidewalk or in the road",
+        "min_similarity": 0.32,
+        "verify": "Is a person lying or collapsed on the ground on the sidewalk or in the road? Sitting on a bench or steps does NOT count.",
+    },
 ]
 
 RULE_BY_ID = {r["id"]: r for r in RULES}
