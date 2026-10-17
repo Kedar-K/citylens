@@ -1,0 +1,13 @@
+# AI-tool config stays local
+CLAUDE.md
+AGENTS.md
+.claude/
+
+# local
+.env
+.venv/
+__pycache__/
+*.pyc
+data/
+footage/
+*.mp4

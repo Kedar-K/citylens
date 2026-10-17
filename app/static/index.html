@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CityLens</title>
+<style>
+:root{--bg:#0f1216;--panel:#161b22;--panel2:#1d242e;--line:#2a323d;--text:#e6e9ee;--muted:#8b95a3;--amber:#f5b400;--red:#ff5c5c;--green:#3ecf8e;--blue:#5aa9ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:18px;margin:0;letter-spacing:.3px}header h1 span{color:var(--amber)}
+header .sub{color:var(--muted);font-size:12px}
+nav{display:flex;gap:4px;margin-left:auto}nav button{background:none;border:1px solid transparent;color:var(--muted);padding:7px 14px;border-radius:6px;cursor:pointer;font-weight:600}
+nav button.on{color:var(--text);background:var(--panel2);border-color:var(--line)}
+main{padding:18px 20px;max-width:1400px;margin:0 auto}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.btn{background:var(--amber);color:#111;border:0;padding:8px 14px;border-radius:6px;font-weight:700;cursor:pointer}.btn.sec{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:wait}
+select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:14px}
+input[type=text]{flex:1;min-width:280px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;margin-top:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.card video{width:100%;display:block;background:#000;aspect-ratio:16/9}
+.card .b{padding:10px 12px}.card .t{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.4px}
+.pill.high{background:#3a1416;color:var(--red)}.pill.medium{background:#3a2f0f;color:var(--amber)}.pill.low{background:#13303f;color:var(--blue)}
+.pill.confirmed{background:#0f3324;color:var(--green)}.pill.dismissed{background:#2a2f36;color:var(--muted)}.pill.candidate{background:#2b2410;color:var(--amber)}
+.cam{color:var(--muted);font-size:12px}.cap{color:var(--muted);font-size:12px;margin-top:6px;max-height:3.9em;overflow:hidden}
+.reason{margin-top:6px;font-size:13px}.reason b{color:var(--green)}.reason.no b{color:var(--muted)}
+.stat{display:flex;gap:18px;margin:12px 0;color:var(--muted);font-size:13px}.stat b{color:var(--text)}
+.chat{display:grid;grid-template-columns:1fr 360px;gap:14px;margin-top:14px}
+.msgs{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-height:320px;max-height:60vh;overflow:auto}
+.m{margin-bottom:12px}.m.u{color:var(--amber);font-weight:600}.m.a{white-space:pre-wrap}
+.trace{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:12px;color:var(--muted);max-height:60vh;overflow:auto}
+.trace div{margin-bottom:8px;border-left:2px solid var(--amber);padding-left:8px}.trace code{color:var(--text)}
+.clipref{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;margin:2px 4px 2px 0;cursor:pointer;color:var(--blue);font-size:12px}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:14px}
+svg text{fill:var(--muted);font-size:11px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:14px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}.kpi .v{font-size:26px;font-weight:700}.kpi .l{color:var(--muted);font-size:12px}
+.hint{color:var(--muted);font-size:12px;margin-top:8px}
+.empty{color:var(--muted);padding:40px;text-align:center}
+a{color:var(--blue)}
+</style>
+</head>
+<body>
+<header>
+  <h1>City<span>Lens</span></h1>
+  <div class="sub">Street cameras, watched. Detect · Investigate · Measure</div>
+  <nav><button class="on" data-tab="detect">Detect</button><button data-tab="investigate">Investigate</button><button data-tab="measure">Measure</button></nav>
+</header>
+<main>
+<section id="detect">
+  <div class="row">
+    <select id="d-cam"><option value="">All street cameras</option></select>
+    <select id="d-rule"><option value="">All rules</option></select>
+    <label class="cam"><input type="checkbox" id="d-verify" checked> Verify with Cosmos Reason</label>
+    <button class="btn" id="d-run">Run detection</button>
+    <button class="btn sec" id="d-load">Show stored incidents</button>
+  </div>
+  <div class="stat" id="d-stat"></div>
+  <div class="grid" id="d-grid"><div class="empty">Run detection to watch the cameras.</div></div>
+</section>
+
+<section id="investigate" hidden>
+  <div class="row">
+    <input type="text" id="q" placeholder="Ask the cameras. e.g. Anything blocking a lane on sf_streets_cam-5? · Show me cyclists close to buses · How busy is nyc_streets_cam-1 compared to normal?">
+    <button class="btn" id="ask">Ask</button>
+    <button class="btn sec" id="find">Find clips</button>
+  </div>
+  <div class="chat">
+    <div class="msgs" id="msgs"><div class="hint">The agent only queries the data layer: captions, detections and CityLens incidents. Every call is traced in Weave.</div></div>
+    <div class="trace" id="trace"><b>Agent trace</b><div class="hint">Tool calls appear here.</div></div>
+  </div>
+  <div class="grid" id="i-grid"></div>
+</section>
+
+<section id="measure" hidden>
+  <div class="row">
+    <select id="m-cam"></select>
+    <button class="btn" id="m-run">Measure</button>
+  </div>
+  <div class="kpis" id="m-kpis"></div>
+  <div class="chart" id="m-chart"><div class="empty">Pick a camera.</div></div>
+  <div class="grid" id="m-grid"></div>
+</section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const api=(p,o)=>fetch('api/'+p,o).then(r=>r.json());
+const clipUrl=s=>'api/clip?source='+encodeURIComponent(s);
+const nice=c=>(c||'').replace('sf_streets_cam-','SF cam ').replace('nyc_streets_cam-','NYC cam ').replace('pie_cam-3','Toronto dashcam').replace('neighborhood_cam-1','Neighborhood cam').replace('i24_cam-1','I-24 highway').replace('nyc_bike_gopro-1','NYC bike cam');
+const fmt=s=>s==null?'':(Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0'));
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');['detect','investigate','measure'].forEach(t=>$('#'+t).hidden=t!==b.dataset.tab)});
+
+function card(inc){
+  const st=inc.status||'candidate';
+  return `<div class="card"><video src="${clipUrl(inc.source)}" controls muted preload="metadata" loop></video><div class="b">
+  <div class="t"><b>${inc.rule||''}</b><span class="pill ${inc.severity||''}">${inc.severity||''}</span></div>
+  <div class="cam">${nice(inc.camera_id)} · ${inc.location||''} · at ${fmt(inc.segment_start_sec)} · match ${inc.similarity??''}</div>
+  <div class="reason ${inc.verdict==='yes'?'':'no'}"><span class="pill ${st}">${st}</span> ${inc.reason?(' <b>'+(inc.verdict==='yes'?'Cosmos: yes':'Cosmos: no')+'</b> · '+inc.reason+(inc.confidence!=null?' ('+Math.round(inc.confidence*100)+'%)':'')):''}</div>
+  <div class="cap">${inc.caption||''}</div></div></div>`;
+}
+function clipCard(r){return `<div class="card"><video src="${clipUrl(r.source)}" controls muted preload="metadata" loop></video><div class="b">
+  <div class="cam">${nice(r.camera_id)} · ${r.location||''} · at ${fmt(r.segment_start_sec??r.start_sec)} · match ${(r.similarity_score??r.similarity??0).toFixed?.(3)??''}</div>
+  <div class="cap" style="max-height:none">${r.reasoning_content||r.caption||''}</div></div></div>`;}
+
+async function init(){
+  const cams=await api('cameras'), rules=await api('rules');
+  const street=cams.filter(c=>c.capture_type==='streets');
+  for(const c of street){$('#d-cam').insertAdjacentHTML('beforeend',`<option value="${c.camera_id}">${nice(c.camera_id)} · ${c.location}</option>`)}
+  for(const c of cams){$('#m-cam').insertAdjacentHTML('beforeend',`<option value="${c.camera_id}">${nice(c.camera_id)} · ${c.location} · ${c.minutes} min</option>`)}
+  for(const r of rules){$('#d-rule').insertAdjacentHTML('beforeend',`<option value="${r.id}">${r.name}</option>`)}
+}
+$('#d-run').onclick=async()=>{
+  const b=$('#d-run');b.disabled=true;b.textContent='Watching…';
+  $('#d-stat').innerHTML='Searching captions, then asking Cosmos Reason about each candidate…';
+  const body={verify:$('#d-verify').checked,max_verify:10,top_k:6};
+  if($('#d-cam').value)body.cameras=[$('#d-cam').value]; if($('#d-rule').value)body.rules=[$('#d-rule').value];
+  try{const r=await api('detect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const conf=r.incidents.filter(i=>i.status==='confirmed').length, dis=r.incidents.filter(i=>i.status==='dismissed').length;
+    $('#d-stat').innerHTML=`<span><b>${r.candidates}</b> candidates</span><span><b>${conf}</b> confirmed</span><span><b>${dis}</b> dismissed by Cosmos</span><span><b>${r.saved}</b> new rows in VastDB</span><span>${r.seconds}s</span>`;
+    $('#d-grid').innerHTML=r.incidents.length?r.incidents.map(card).join(''):'<div class="empty">Nothing matched.</div>';
+  }catch(e){$('#d-stat').textContent='Error: '+e}
+  b.disabled=false;b.textContent='Run detection';
+};
+$('#d-load').onclick=async()=>{const r=await api('incidents');$('#d-stat').innerHTML=`<span><b>${r.length}</b> incidents stored in VastDB citylens.incidents</span>`;$('#d-grid').innerHTML=r.length?r.map(card).join(''):'<div class="empty">No incidents stored yet.</div>'};
+
+const history=[];
+function renderAnswer(text){
+  const refs=[];text=text.replace(/\[clip:([^\]]+)\]/g,(m,s)=>{refs.push(s);return `<span class="clipref" data-s="${s}">clip ${refs.length}</span>`});
+  return {html:text,refs};
+}
+$('#ask').onclick=async()=>{
+  const q=$('#q').value.trim();if(!q)return;
+  $('#msgs').insertAdjacentHTML('beforeend',`<div class="m u">${q}</div><div class="m a" id="pending">Thinking…</div>`);
+  $('#q').value='';$('#ask').disabled=true;
+  try{const r=await api('ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:q,history})});
+    const {html,refs}=renderAnswer(r.answer||'');
+    $('#pending').outerHTML=`<div class="m a">${html}<div class="hint">${r.model} · ${r.seconds}s${r.weave_url?' · <a href="'+r.weave_url+'" target="_blank">Weave trace</a>':''}</div></div>`;
+    history.push({role:'user',content:q},{role:'assistant',content:r.answer||''});
+    $('#trace').innerHTML='<b>Agent trace</b>'+(r.trace||[]).map(t=>`<div><code>${t.tool}</code> ${JSON.stringify(t.args)} · ${t.seconds}s<br>${(t.result_preview||'').replace(/</g,'&lt;')}</div>`).join('');
+    $('#i-grid').innerHTML=refs.map(s=>clipCard({source:s})).join('');
+    document.querySelectorAll('.clipref').forEach(el=>el.onclick=()=>{$('#i-grid').innerHTML=clipCard({source:el.dataset.s})});
+  }catch(e){$('#pending').textContent='Error: '+e}
+  $('#ask').disabled=false;$('#msgs').scrollTop=1e9;
+};
+$('#find').onclick=async()=>{const q=$('#q').value.trim();if(!q)return;$('#i-grid').innerHTML='<div class="empty">Searching…</div>';
+  const r=await api('search?q='+encodeURIComponent(q)+'&top_k=9');$('#i-grid').innerHTML=r.results.map(clipCard).join('')||'<div class="empty">No clips.</div>';
+  if(r.synthesis)$('#msgs').insertAdjacentHTML('beforeend',`<div class="m u">${q}</div><div class="m a">${r.synthesis.replace(/\*\*/g,'')}</div>`)};
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ask').click()});
+
+$('#m-run').onclick=async()=>{
+  const cam=$('#m-cam').value;const m=await api('measure?camera_id='+encodeURIComponent(cam));
+  const ratio=m.current_ratio;const kp=[[m.baseline_vehicles,'vehicles per clip, this camera\'s normal'],[m.peak.rolling,'busiest minute (vehicles per clip)'],[(m.peak.rolling/(m.baseline_vehicles||1)).toFixed(1)+'×','peak vs normal'],[m.people_median,'people per clip, typical'],[m.segments,'5 s clips measured']];
+  $('#m-kpis').innerHTML=kp.map(([v,l])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  const W=1100,H=260,P=36,s=m.series,n=s.length,mx=Math.max(...s.map(x=>x.vehicles),1);
+  const X=i=>P+i*(W-2*P)/Math.max(n-1,1),Y=v=>H-P-v*(H-2*P)/mx;
+  const bars=s.map((x,i)=>`<rect x="${X(i)-1}" y="${Y(x.vehicles)}" width="2" height="${H-P-Y(x.vehicles)}" fill="#2f3a48"/>`).join('');
+  const line='M'+s.map((x,i)=>X(i).toFixed(1)+','+Y(x.rolling).toFixed(1)).join(' L');
+  const base=Y(m.baseline_vehicles);
+  $('#m-chart').innerHTML=`<div class="cam">${nice(cam)} · vehicles per 5 s clip (bars), rolling minute (amber), this camera's normal (dashed). Click a point to play it.</div>
+  <svg viewBox="0 0 ${W} ${H}" width="100%">${bars}<path d="${line}" fill="none" stroke="#f5b400" stroke-width="2"/><line x1="${P}" x2="${W-P}" y1="${base}" y2="${base}" stroke="#8b95a3" stroke-dasharray="4 4"/><text x="${W-P}" y="${base-4}" text-anchor="end">normal ${m.baseline_vehicles}</text><text x="${P}" y="${H-10}">start</text><text x="${W-P}" y="${H-10}" text-anchor="end">end (${(n*5/60).toFixed(0)} min)</text>
+  ${s.map((x,i)=>`<circle cx="${X(i)}" cy="${Y(x.rolling)}" r="5" fill="transparent" data-s="${x.source}" style="cursor:pointer"/>`).join('')}</svg>`;
+  $('#m-grid').innerHTML=clipCard({...m.peak,camera_id:cam,segment_start_sec:null,reasoning_content:`Busiest minute: ${m.peak.rolling} vehicles per clip`})+clipCard({...m.quiet,camera_id:cam,segment_start_sec:null,reasoning_content:`Quietest minute: ${m.quiet.rolling} vehicles per clip`});
+  document.querySelectorAll('#m-chart circle').forEach(c=>c.onclick=()=>{$('#m-grid').innerHTML=clipCard({source:c.dataset.s,camera_id:cam})});
+};
+init();
+</script>
+</body>
+</html>
