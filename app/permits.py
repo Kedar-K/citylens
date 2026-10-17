@@ -34,13 +34,18 @@ def _toronto():
         start, end = float(r.get("startTime") or 0), float(r.get("endTime") or 0)
         if r.get("expired") or (start and start > now) or (end and end < now):
             continue
-        src = r.get("workEventType") or r.get("source") or ""
-        if src.startswith("{"):
-            m = re.search(r'"Option":"([^"]+)"', src)
-            src = m.group(1) if m else "City"
+        def clean(x):  # some fields carry a serialized form widget instead of a value
+            x = x or ""
+            if x.startswith("{"):
+                m = re.search(r'"Option":"([^"]+)"', x)
+                return m.group(1) if m else "City of Toronto"
+            return x
+        src = clean(r.get("workEventType") or r.get("source"))
+        contractor = clean(r.get("contractor"))
+        permit_type = clean(r.get("permitType"))
         out.append({"id": r.get("id"), "kind": r.get("type"), "road": r.get("road"), "where": r.get("name"),
-                    "description": r.get("description"), "holder": r.get("contractor") or src,
-                    "permit_type": r.get("permitType") or src, "lat": lat, "lon": lon,
+                    "description": clean(r.get("description")), "holder": contractor or src,
+                    "permit_type": permit_type or src, "lat": lat, "lon": lon,
                     "start": time.strftime("%Y-%m-%d", time.gmtime(start / 1000)) if start else None,
                     "end": time.strftime("%Y-%m-%d", time.gmtime(end / 1000)) if end else None,
                     "url": r.get("URL")})
