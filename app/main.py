@@ -365,7 +365,7 @@ def _faststart_path(source):
             os.replace(src, path)
     # keep the cache bounded
     files = sorted((os.path.getmtime(os.path.join(_CLIP_DIR, f)), f) for f in os.listdir(_CLIP_DIR) if f.endswith(".mp4"))
-    for _, f in files[:-40]:
+    for _, f in files[:-12]:
         try:
             os.remove(os.path.join(_CLIP_DIR, f))
         except OSError:
