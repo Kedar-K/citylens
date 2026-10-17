@@ -264,8 +264,12 @@ class Agent:
                 except json.JSONDecodeError:
                     args = {}
                 t1 = time.time()
+                searches = sum(1 for t in trace if t["tool"] == "search_clips")
                 try:
-                    result = getattr(self, name)(**args)
+                    if name == "search_clips" and searches >= 2:
+                        result = {"note": "Search limit reached. Answer now from the clips already found."}
+                    else:
+                        result = getattr(self, name)(**args)
                 except Exception as e:
                     result = {"error": str(e)}
                 sources += re.findall(r"s3://[^\s\"',\]】]+\.mp4", json.dumps(result))
@@ -273,7 +277,10 @@ class Agent:
                               "result_preview": json.dumps(result)[:300]})
                 messages.append({"role": "tool", "tool_call_id": tc.id, "name": name,
                                  "content": json.dumps(result)[:12000]})
-        return {"answer": "I ran out of steps before reaching an answer.", "trace": trace, "model": MODEL,
+        messages.append({"role": "user", "content": "Answer the question now in plain text for the operator from what you found, citing clips as [clip:<source>]."})
+        r = client.chat.completions.create(model=MODEL, messages=messages, temperature=0, max_tokens=700)
+        answer = self._fix_clip_refs((r.choices[0].message.content or "").strip(), sources)
+        return {"answer": answer or "I could not form an answer from the data I found.", "trace": trace, "model": MODEL,
                 "seconds": round(time.time() - t0, 1)}
 
 
