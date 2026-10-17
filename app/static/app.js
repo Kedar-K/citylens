@@ -271,6 +271,16 @@ $('#m-run').onclick = async () => {
   const oc = ov.cameras.find(c => c.camera_id === cam) || {};
   $('#m-title').textContent = nice(cam);
   $('#m-pos').innerHTML = `<i></i>${esc(oc.intersection ? oc.intersection + ' · ' : '')}${city(oc.location)}${oc.status ? ' · <span class="chip ' + oc.status + '">' + oc.status + '</span>' : ''}`;
+  api('storyboard?camera_id=' + encodeURIComponent(cam) + '&n=24').then(sb => {
+    $('#sb-sub').textContent = `${sb.minutes} min · ${sb.frames.length} frames · ${sb.incidents.length} confirmed incident${sb.incidents.length === 1 ? '' : 's'}`;
+    const hitIdx = new Set(sb.incidents.map(x => Math.round(x.i / Math.max(1, sb.segments - 1) * (sb.frames.length - 1))));
+    $('#sb').innerHTML = sb.frames.map((f, k) => `<div class="f ${hitIdx.has(k) ? 'hit' : ''}" data-src="${esc(f.source)}" data-chunk="${esc(f.original_video)}" data-start="${(f.seg - 1) * 5}" title="minute ${f.minute} · ${f.vehicles} vehicles, ${f.people} people"><img src="${thumbUrl(f.source)}" loading="lazy" alt=""><span class="m">${f.minute}′</span></div>`).join('');
+    const ticks = [0, .25, .5, .75, 1].map(t => `<span class="tick" style="left:${t * 100}%">${(t * sb.minutes).toFixed(0)} min</span>`).join('');
+    $('#sbaxis').innerHTML = `<div class="line"></div>${ticks}` + sb.incidents.map(x => `<span class="pin" style="left:${x.pos * 100}%" title="${esc(x.rule)}: ${esc(x.reason || '')}" data-src="${esc(x.source)}" data-id="${x.id}"></span>`).join('');
+    const play = (src, chunk, start, label) => { $('#m-moments').innerHTML = momentCard(src, label, chunk, start); wireCards($('#m-moments')); $('#m-moments').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#m-moments video').play().catch(() => {}); };
+    $('#sb').querySelectorAll('.f').forEach(el => el.onclick = () => play(el.dataset.src, el.dataset.chunk, +el.dataset.start, el.title));
+    $('#sbaxis').querySelectorAll('.pin').forEach(el => el.onclick = () => { const f = sb.frames.find(x => x.source === el.dataset.src); play(el.dataset.src, f?.original_video, f ? (f.seg - 1) * 5 : 0, el.title); });
+  });
   api('incidents?camera_id=' + encodeURIComponent(cam)).then(list => {
     const conf = list.filter(i => i.status === 'confirmed'), dis = list.filter(i => i.status === 'dismissed');
     $('#m-inc-sub').textContent = `${conf.length} confirmed · ${dis.length} dismissed by Cosmos`;

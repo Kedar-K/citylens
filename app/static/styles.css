@@ -197,3 +197,13 @@ button{font:inherit}
 .collapsed .side{padding:26px 12px}.collapsed .brand{padding:4px 6px 22px;justify-content:center}.collapsed .brand .bt{display:none}.collapsed .collapse{right:-8px;top:40px}.collapsed .collapse svg{transform:rotate(180deg)}
 .collapsed .nav button{justify-content:center;padding:12px 0}.collapsed .nav button span:not(.k){display:none}.collapsed .nav .k{position:absolute;margin:-26px 0 0 26px}.collapsed .nav button{position:relative}
 .collapsed .side .foot{display:none}
+/* storyboard */
+.sb{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;border-radius:8px;overflow:hidden}
+.sb .f{position:relative;aspect-ratio:16/9;background:#000;cursor:pointer;overflow:hidden}.sb .f img{width:100%;height:100%;object-fit:cover;display:block;opacity:.85;transition:opacity .15s,transform .2s}.sb .f:hover img{opacity:1;transform:scale(1.06)}
+.sb .f .m{position:absolute;left:6px;bottom:5px;font-size:10.5px;font-weight:700;color:#fff;text-shadow:0 1px 3px #000}
+.sb .f.hit::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 2px var(--red2)}
+.sbaxis{position:relative;height:26px;margin-top:8px}
+.sbaxis .pin{position:absolute;top:0;width:12px;height:12px;border-radius:50%;background:var(--red);border:2px solid var(--ink);transform:translateX(-50%);box-shadow:0 0 10px rgba(229,32,47,.7);cursor:pointer}
+.sbaxis .pin:hover{transform:translateX(-50%) scale(1.3)}
+.sbaxis .tick{position:absolute;top:14px;font-size:10.5px;color:var(--muted);transform:translateX(-50%)}
+.sbaxis .line{position:absolute;left:0;right:0;top:5px;height:2px;background:var(--panel3)}

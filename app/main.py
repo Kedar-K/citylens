@@ -238,6 +238,26 @@ def boxes(source: str, step: int = 2):
     return res
 
 
+@app.get("/api/storyboard")
+def storyboard(camera_id: str, n: int = 24):
+    """Evenly spaced frames across a camera's recording, with the confirmed incidents placed on the same timeline."""
+    rows = [r for r in store.rows() if r["camera_id"] == camera_id]
+    if not rows:
+        raise HTTPException(404, "unknown camera")
+    step = max(1, len(rows) // n)
+    frames = [{"i": i, "minute": round(i * 5 / 60, 1), "source": r["source"], "original_video": r["original_video"],
+               "seg": r["segment_number"], "vehicles": r["vehicles"], "people": r["people"]}
+              for i, r in enumerate(rows) if i % step == 0][:n]
+    idx = {r["source"]: i for i, r in enumerate(rows)}
+    marks = []
+    for inc in store.incidents(status="confirmed", camera_id=camera_id):
+        i = idx.get(inc["source"])
+        if i is not None:
+            marks.append({"i": i, "pos": i / max(1, len(rows) - 1), "rule": inc["rule"], "rule_id": inc["rule_id"],
+                          "source": inc["source"], "reason": inc["reason"], "id": inc["id"]})
+    return {"camera_id": camera_id, "segments": len(rows), "minutes": round(len(rows) * 5 / 60, 1), "frames": frames, "incidents": marks}
+
+
 @app.get("/api/thumb")
 def thumb(source: str):
     data = thumbnail(vss, source)
