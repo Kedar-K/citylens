@@ -18,6 +18,7 @@ from app.verify import verify_incident  # noqa: E402
 from app.agent import Agent, traced  # noqa: E402
 from app.thumbs import thumbnail  # noqa: E402
 from app.city import city as city_data  # noqa: E402
+from app.permits import permits as permit_data, triage as permit_triage, near as permits_near, CONSTRUCTION_RULES  # noqa: E402
 import threading, uuid  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -135,6 +136,46 @@ def city(location: str):
     if d is None:
         raise HTTPException(404, "no open-data source for this location")
     return d
+
+
+@app.get("/api/permits")
+def permits(location: str):
+    d = permit_data(location)
+    if d is None:
+        raise HTTPException(404, "no permit register for this location")
+    return {k: v for k, v in d.items() if k != "items"} | {"count": len(d["items"]), "items": d["items"][:2000]}
+
+
+@app.get("/api/city_view")
+def city_view(location: str):
+    """Everything for one city: cameras, incidents, residents' 311 requests, the permit register, and the
+    construction triage (camera-confirmed work zone vs permits on file)."""
+    ov = store.overview(store.incidents())
+    cams = [c for c in ov["cameras"] if c["location"] == location]
+    inc = [i for i in store.incidents() if i.get("location") == location]
+    conf = [i for i in inc if i["status"] == "confirmed"]
+    c311 = city_data(location) or {}
+    reg = permit_data(location) or {}
+    items = reg.get("items", [])
+    pos = {c["camera_id"]: (c["intersection"], c["lat"], c["lon"]) for c in cams if c.get("lat")}
+    triage = []
+    for i in conf:
+        if i.get("rule_id") in CONSTRUCTION_RULES:
+            t = permit_triage(i, pos.get(i["camera_id"]), items)
+            triage.append({**{k: i.get(k) for k in ("id", "rule", "rule_id", "camera_id", "source", "original_video",
+                                                     "segment_start_sec", "reason", "confidence", "detected_at", "severity")}, "triage": t})
+    near_cams = []
+    for c in cams:
+        if c.get("lat"):
+            n = permits_near(items, c["lat"], c["lon"], 400)
+            near_cams.append({"camera_id": c["camera_id"], "permits_near": len(n), "nearest": n[:3]})
+    meta = store.CITIES.get(location)
+    return {"location": location, "name": meta[0] if meta else location, "lat": meta[1] if meta else None, "lon": meta[2] if meta else None,
+            "cameras": cams, "incidents": inc, "confirmed": len(conf), "dismissed": sum(1 for i in inc if i["status"] == "dismissed"),
+            "c311": {k: v for k, v in c311.items() if k != "cases"} | {"cases": c311.get("cases", [])},
+            "permits": {k: v for k, v in reg.items() if k != "items"} | {"count": len(items), "items": items[:2500]},
+            "permits_near_cameras": near_cams, "triage": triage,
+            "actions": [a for a in store.actions() if a.get("location") == location]}
 
 
 @app.get("/api/thumb")

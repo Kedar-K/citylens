@@ -64,6 +64,20 @@
   </div>
 </section>
 
+<section id="v-city" hidden>
+  <div class="top"><div><h1 id="c-title">City</h1><p id="c-sub">Cameras, verified incidents, what residents report, and the permit register, in one view.</p></div><button class="btn ghost" onclick="show('overview')">← All cities</button></div>
+  <div class="kpis" id="c-kpis"></div>
+  <div class="row2" style="grid-template-columns:1.4fr 1fr">
+    <div class="panel"><div class="h"><b>City map</b><span id="c-map-sub"></span></div><div style="position:relative"><div id="cmap" style="height:460px"></div><div class="mapctl" style="display:flex;gap:14px"><label class="layer"><input type="checkbox" id="c-l311" checked> 311</label><label class="layer"><input type="checkbox" id="c-lperm" checked> Permits</label></div></div></div>
+    <div class="panel"><div class="h"><b>Construction triage</b><span>camera-confirmed street work vs the permit register</span></div><div class="feed" id="c-triage" style="max-height:460px"></div></div>
+  </div>
+  <div class="row2">
+    <div class="panel"><div class="h"><b>Confirmed incidents</b><span id="c-inc-sub"></span></div><div class="feed" id="c-inc" style="max-height:420px"></div></div>
+    <div class="panel"><div class="h"><b id="c-311-title">What residents report</b><span id="c-311-sub"></span></div><div class="c c311" id="c-311"></div></div>
+  </div>
+  <div class="panel"><div class="h"><b>Cameras in this city</b><span>click to open</span></div><div class="c"><div class="wall" id="c-wall"></div></div></div>
+</section>
+
 <section id="v-system" hidden>
   <div class="top"><div><h1>System</h1><p>What CityLens runs on. One data platform, GPU models on demand, an agent that only reads data.</p></div><button class="btn ghost" id="s-refresh">Refresh</button></div>
   <div class="panel" style="margin-bottom:14px"><div class="h"><b>Pipeline</b><span>video in, operational data out</span></div><div class="c"><div class="flow" id="flow"></div></div></div>

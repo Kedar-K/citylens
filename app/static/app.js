@@ -16,14 +16,14 @@ const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.ad
 Chart.defaults.color = '#8a8a95'; Chart.defaults.font.family = '"Nunito Sans", system-ui, sans-serif'; Chart.defaults.borderColor = 'rgba(255,255,255,.07)';
 
 /* navigation */
-const views = ['overview', 'incidents', 'measure', 'system'];
+const views = ['overview', 'incidents', 'measure', 'system', 'city'];
 const loaded = {};
 function show(v) {
   document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   views.forEach(x => $('#v-' + x).hidden = x !== v);
-  if (!loaded[v]) { loaded[v] = true; ({ overview: loadOverview, incidents: loadIncidents, measure: loadMeasure, system: loadSystem })[v](); }
+  if (!loaded[v]) { loaded[v] = true; ({ overview: loadOverview, incidents: loadIncidents, measure: loadMeasure, system: loadSystem, city: () => {} })[v](); }
   if (v === 'overview' && map) setTimeout(() => map.invalidateSize(), 50);
-  history.replaceState(null, '', '#' + v);
+  if (v !== 'city') history.replaceState(null, '', '#' + v);
 }
 document.querySelectorAll('.nav button').forEach(b => b.onclick = () => show(b.dataset.view));
 
@@ -59,8 +59,8 @@ async function loadOverview() {
     const col = c.status === 'incident' ? '#ff4150' : '#e4e4ea';
     const m = L.circleMarker([c.lat, c.lon], { radius: 9 + Math.min(c.cameras, 6) * 1.5, color: col, weight: 1.5, fillColor: col, fillOpacity: .12 }).addTo(map);
     
-    m.bindPopup(`<b>${c.name}</b><br>${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.minutes} min indexed<br>${c.incidents} confirmed incident${c.incidents === 1 ? '' : 's'}`);
-    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#8a8a95">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }), interactive: false }).addTo(map);
+    m.bindPopup(`<b>${c.name}</b><br>${c.cameras} camera${c.cameras > 1 ? 's' : ''} · ${c.minutes} min indexed<br>${c.incidents} confirmed incident${c.incidents === 1 ? '' : 's'}<br><a href="#" onclick="openCity('${c.location}');return false">Open city view →</a>`);
+    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'city-label', html: `${c.name} <span style="color:#8a8a95">· ${c.cameras}</span>`, iconAnchor: [-14, 8] }) }).on('click', () => openCity(c.location)).addTo(map);
     pts.push([c.lat, c.lon]);
   }
   // camera pins (illustrative placement, see store.CAMERA_POS)
@@ -72,7 +72,7 @@ async function loadOverview() {
     pts.push([c.lat, c.lon]);
   }
   if (pts.length) map.fitBounds(pts, { padding: [50, 90], maxZoom: 6 });
-  $('#map-sub').textContent = `${OV.cities.length} cities · ${OV.cameras.length} cameras · camera placement illustrative`;
+  $('#map-sub').innerHTML = OV.cities.map(c => `<a href="#" onclick="openCity('${c.location}');return false" style="margin-left:10px;font-weight:600">${c.name} →</a>`).join('') + ` <span style="margin-left:10px">· camera placement illustrative</span>`;
   // feed
   $('#feed').innerHTML = OV.feed.length ? OV.feed.map(i => `<div class="fitem" data-src="${esc(i.source)}"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t">${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · ${city(i.location)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('')
     : '<div class="empty">No confirmed incidents yet. Run a watch on the Incidents screen.</div>';
@@ -279,3 +279,50 @@ async function loadSystem() {
 $('#s-refresh').onclick = loadSystem;
 
 show(views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview');
+
+/* ---------- city view ---------- */
+let cmap, cLayers = {};
+async function openCity(loc) {
+  show('city'); history.replaceState(null, '', '#city/' + loc);
+  $('#c-title').textContent = city(loc); $('#c-kpis').innerHTML = ''; $('#c-triage').innerHTML = '<div class="empty">Loading the permit register…</div>'; $('#c-inc').innerHTML = ''; $('#c-311').innerHTML = ''; $('#c-wall').innerHTML = '';
+  const d = await api('city_view?location=' + loc);
+  const p = d.permits || {}, r = d.c311 || {};
+  const noPermit = d.triage.filter(t => t.triage.status === 'no_permit').length, permitted = d.triage.filter(t => t.triage.status === 'permitted').length;
+  $('#c-kpis').innerHTML = [[d.cameras.length, 'cameras'], [d.confirmed, 'incidents confirmed', 'red'], [d.dismissed, 'false alarms suppressed', 'green'], [r.total ?? '–', r.name ? 'latest 311 requests' : 'no 311 feed'], [p.count ?? '–', p.name ? 'active permits & restrictions' : 'no permit register'], [d.triage.length ? `${permitted} / ${noPermit}` : '–', 'work zones permitted / no permit found', noPermit ? 'red' : '']]
+    .map(([v, l, c]) => `<div class="kpi ${c || ''}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  $('#c-sub').textContent = `${p.name ? p.name + ' · ' : ''}${r.name ? r.name + ' · ' : ''}camera placement illustrative`;
+  // map
+  if (!cmap) { cmap = L.map('cmap', { zoomControl: true, attributionControl: false }); L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(cmap); }
+  Object.values(cLayers).forEach(l => cmap.removeLayer(l)); cLayers = {};
+  cLayers.p = L.layerGroup(); for (const x of (p.items || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#9aa6ff', weight: 0, fillColor: '#9aa6ff', fillOpacity: .7 }).bindPopup(`<b>${esc(x.permit_type || x.kind)}</b> · ${esc(x.holder || '')}<br>${esc(x.where || '')}<br><span style="color:#8a8a95">${esc(x.description || '')}${x.start ? ' · ' + x.start : ''}${x.end ? ' → ' + x.end : ''}</span>`).addTo(cLayers.p);
+  cLayers.r = L.layerGroup(); for (const x of (r.cases || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#f2a93b', weight: 0, fillColor: '#f2a93b', fillOpacity: .7 }).bindPopup(`<b>${esc(x.category)}</b>${x.detail ? '<br>' + esc(x.detail) : ''}<br><span style="color:#8a8a95">${esc(x.where || '')} · ${ago(x.when)}</span>`).addTo(cLayers.r);
+  cLayers.c = L.layerGroup();
+  const pts = [];
+  for (const c of d.cameras.filter(c => c.lat)) {
+    const col = c.status === 'incident' ? '#ff4150' : c.status === 'busy' ? '#f2a93b' : '#e4e4ea';
+    const n = d.permits_near_cameras.find(x => x.camera_id === c.camera_id);
+    L.circleMarker([c.lat, c.lon], { radius: 8, color: '#09090b', weight: 2, fillColor: col, fillOpacity: 1 }).bindPopup(`<b>${nice(c.camera_id)}</b><br><span style="color:#8a8a95">${esc(c.intersection)}</span><br>${c.incidents} confirmed · ${c.ratio ?? '–'}× normal${n ? '<br>' + n.permits_near + ' permits within 400 m' : ''}<br><a href="#" onclick="show('measure');document.querySelector('#m-cam').value='${c.camera_id}';document.querySelector('#m-run').click();return false">Open camera →</a>`).addTo(cLayers.c);
+    pts.push([c.lat, c.lon]);
+  }
+  if ($('#c-lperm').checked) cLayers.p.addTo(cmap); if ($('#c-l311').checked) cLayers.r.addTo(cmap); cLayers.c.addTo(cmap);
+  setTimeout(() => { cmap.invalidateSize(); if (pts.length) cmap.fitBounds(pts, { padding: [60, 60], maxZoom: 14 }); else if (d.lat) cmap.setView([d.lat, d.lon], 12); }, 60);
+  $('#c-l311').onchange = () => $('#c-l311').checked ? cLayers.r.addTo(cmap) : cmap.removeLayer(cLayers.r);
+  $('#c-lperm').onchange = () => $('#c-lperm').checked ? cLayers.p.addTo(cmap) : cmap.removeLayer(cLayers.p);
+  $('#c-map-sub').textContent = `${d.cameras.filter(c => c.lat).length} cameras · ${(r.cases || []).length} 311 · ${p.count || 0} permits`;
+  // triage
+  $('#c-triage').innerHTML = d.triage.length ? d.triage.map(t => { const tr = t.triage; return `<div class="tri"><img src="${thumbUrl(t.source)}" loading="lazy" alt="" onclick="show('incidents');$('#i-cam').value='${t.camera_id}';$('#i-filter').value='confirmed';$('#i-stored').click()"><div><div class="t">${esc(t.rule)} <span class="chip ${tr.status}">${tr.status === 'permitted' ? 'permit on file' : tr.status === 'no_permit' ? 'no permit found' : 'no position'}</span></div><div class="s">${nice(t.camera_id)} · at ${mmss(t.segment_start_sec)} · Cosmos: ${esc(t.reason || '')}</div><div class="r">${esc(tr.note || '')}${tr.match ? ` · <b>${esc(tr.match.id || '')}</b> ${esc(tr.match.holder || '')}` : ''}${tr.status === 'no_permit' ? ` <button class="btn sm act311" data-id="${t.id}" style="margin-left:8px">Open case</button>` : ''}</div></div></div>`; }).join('')
+    : `<div class="empty">${p.name ? 'No camera-confirmed work zones in this city yet. Run the work-zone rules on the Incidents screen.' : 'This city has no open permit register wired in.'}</div>`;
+  wireCards($('#c-triage'));
+  // incidents
+  const conf = d.incidents.filter(i => i.status === 'confirmed');
+  $('#c-inc-sub').textContent = `${conf.length} confirmed · ${d.dismissed} dismissed`;
+  $('#c-inc').innerHTML = conf.length ? conf.map(i => `<div class="fitem" onclick="show('incidents');$('#i-cam').value='${i.camera_id}';$('#i-filter').value='confirmed';$('#i-stored').click()"><img src="${thumbUrl(i.source)}" loading="lazy" alt=""><div><div class="t">${esc(i.rule)} <span class="chip ${i.severity}">${i.severity}</span></div><div class="s">${nice(i.camera_id)} · at ${mmss(i.segment_start_sec)} · ${ago(i.detected_at)}</div><div class="r">${esc(i.reason)}</div></div></div>`).join('') : '<div class="empty">No confirmed incidents here yet.</div>';
+  // 311
+  $('#c-311-title').textContent = r.name || 'What residents report'; $('#c-311-sub').textContent = r.name ? `${r.total} latest · ${r.attribution} · ${r.fetched_at}` : 'no open-data feed for this city';
+  const mx = r.categories?.[0]?.[1] || 1;
+  $('#c-311').innerHTML = (r.categories || []).map(([c, n]) => `<span>${esc(c)}</span><b>${n}</b><div class="bar"><i style="width:${Math.round(100 * n / mx)}%"></i></div>`).join('') || '<div class="empty">No data.</div>';
+  // wall
+  $('#c-wall').innerHTML = d.cameras.map(c => `<div class="cam" data-cam="${c.camera_id}"><div class="img"><img src="${thumbUrl(c.latest_source)}" loading="lazy" alt=""><span class="chip ${c.status}">${c.status === 'incident' ? c.incidents + ' incident' + (c.incidents > 1 ? 's' : '') : c.status}</span><span class="id">${esc(c.intersection || c.capture_type)}</span></div><div class="b"><div><div class="n">${nice(c.camera_id)}</div><div class="m">${c.minutes} min · ${c.ratio != null ? c.ratio + '× normal' : ''}</div></div>${spark(c.spark, c.baseline)}</div></div>`).join('');
+  document.querySelectorAll('#c-wall .cam').forEach(el => el.onclick = () => { show('measure'); $('#m-cam').value = el.dataset.cam; $('#m-run').click(); });
+}
+if (location.hash.startsWith('#city/')) openCity(location.hash.slice(6));
