@@ -226,3 +226,4 @@ button{font:inherit}
 .collapsed .nav .k{top:2px;right:4px}
 @media (max-width:1500px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (min-width:1501px){.kpis{grid-template-columns:repeat(6,1fr)}}
+.collapsed .nav .k{top:-2px;right:0;transform:scale(.85)}
