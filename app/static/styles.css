@@ -227,3 +227,9 @@ button{font:inherit}
 @media (max-width:1500px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (min-width:1501px){.kpis{grid-template-columns:repeat(6,1fr)}}
 .collapsed .nav .k{top:-2px;right:0;transform:scale(.85)}
+/* collapse control lives at the bottom of the sidebar */
+.side .collapse{position:static;transform:none;margin-top:auto;width:100%;height:auto;border-radius:9px;display:flex;align-items:center;gap:10px;padding:9px 14px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:600;font-size:13px}
+.side .collapse:hover{background:var(--hi);color:var(--text)}.side .collapse svg{width:15px;height:15px}
+.side .foot{margin-top:12px}
+.collapsed .side .collapse{left:auto;bottom:auto;justify-content:center;padding:10px 0}.collapsed .side .collapse span{display:none}.collapsed .side .collapse svg{transform:rotate(180deg)}
+.collapsed .brand{padding:0 0 20px}
