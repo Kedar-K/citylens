@@ -90,6 +90,9 @@ async function loadOverview() {
 }
 
 let layer311 = null, camLayer = null, CITYDATA = {};
+function pointPopup(kind, col, title, sub, meta) {
+  return `<div class="pop pop2"><div class="pk2" style="color:${col}">${esc(kind)}</div><div class="pt"><b>${esc(title || '')}</b></div>${sub ? `<div class="ps">${esc(sub)}</div>` : ''}<div class="pk">${(meta || []).filter(Boolean).map(m => `<span>${esc(m)}</span>`).join('')}</div></div>`;
+}
 function camPopup(c, n311, nPermits) {
   const load = c.ratio == null ? '' : c.ratio > 1.3 ? `busier than usual, ${c.ratio}× its normal` : c.ratio < 0.6 ? `quieter than usual, ${c.ratio}× its normal` : `normal load, ${c.ratio}× its normal`;
   return `<div class="pop"><img src="${thumbUrl(c.latest_source)}" alt=""><div class="pt"><b>${nice(c.camera_id)}</b><span class="chip ${c.status}">${c.status}</span></div><div class="ps">${esc(c.intersection || '')} · ${city(c.location)}</div>
@@ -124,7 +127,7 @@ function draw311() {
   layer311 = L.layerGroup();
   for (const d of Object.values(CITYDATA)) for (const c of (d.cases || [])) {
     L.circleMarker([c.lat, c.lon], { radius: 3, color: '#f2a93b', weight: 0, fillColor: '#f2a93b', fillOpacity: .75 })
-      .bindPopup(`<b>${esc(c.category)}</b>${c.detail ? '<br>' + esc(c.detail) : ''}<br><span style="color:#8a8a95">${esc(c.where || '')} · ${ago(c.when)} · ${esc(c.status || '')}</span>`).addTo(layer311);
+      .bindPopup(() => pointPopup('311 request', '#f2a93b', c.category, c.detail, [c.where, ago(c.when), c.status]), { minWidth: 240 }).addTo(layer311);
   }
   layer311.addTo(map);
   const first = Object.values(CITYDATA).find(d => d.cases?.length);
@@ -179,7 +182,7 @@ function wireCards(root) {
   root.querySelectorAll('.ctx button').forEach(b => b.onclick = () => {
     const card = b.closest('.inc'), v = card.querySelector('video'), start = +card.dataset.start || 0;
     card.querySelectorAll('.ctx button').forEach(x => x.classList.toggle('on', x === b));
-    toggleBoxes(card, false); card.querySelector('.boxbtn')?.classList.remove('on');
+    toggleBoxes(card, false); const bb = card.querySelector('.boxbtn'); if (bb) { bb.classList.remove('on'); bb.disabled = b.dataset.mode === 'chunk'; bb.title = b.dataset.mode === 'chunk' ? 'Boxes are available on the 5 s moment' : ''; }
     if (b.dataset.mode === 'chunk') { v.loop = false; card.dataset.cur = card.dataset.chunk; v.src = clipUrl(card.dataset.chunk) + '#t=' + Math.max(0, start - 5); v.play(); }
     else { v.loop = true; card.dataset.cur = card.dataset.src; v.src = clipUrl(card.dataset.src); v.play(); }
   });
@@ -203,7 +206,7 @@ async function loadIncidents() {
   $('#i-rule').innerHTML = '<option value="">All rules</option>' + RULES.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
 }
 $('#i-filter').onchange = () => renderIncidents(lastList);
-$('#i-stored').onclick = async () => { lastList = await api('incidents'); renderIncidents(lastList); };
+$('#i-stored').onclick = async () => { const q = []; if ($('#i-cam').value) q.push('camera_id=' + encodeURIComponent($('#i-cam').value)); if ($('#i-rule').value) q.push('rule_id=' + encodeURIComponent($('#i-rule').value)); lastList = await api('incidents' + (q.length ? '?' + q.join('&') : '')); renderIncidents(lastList); };
 $('#i-run').onclick = async () => {
   const b = $('#i-run'); b.disabled = true;
   const body = { verify: $('#i-verify').checked, max_verify: 12, top_k: 6 };
@@ -340,8 +343,8 @@ async function openCity(loc) {
   // map
   if (!cmap) { cmap = L.map('cmap', { zoomControl: true, attributionControl: false }); L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(cmap); }
   Object.values(cLayers).forEach(l => cmap.removeLayer(l)); cLayers = {};
-  cLayers.p = L.layerGroup(); for (const x of (p.items || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#9aa6ff', weight: 0, fillColor: '#9aa6ff', fillOpacity: .7 }).bindPopup(`<b>${esc(x.permit_type || x.kind)}</b> · ${esc(x.holder || '')}<br>${esc(x.where || '')}<br><span style="color:#8a8a95">${esc(x.description || '')}${x.start ? ' · ' + x.start : ''}${x.end ? ' → ' + x.end : ''}</span>`).addTo(cLayers.p);
-  cLayers.r = L.layerGroup(); for (const x of (r.cases || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#f2a93b', weight: 0, fillColor: '#f2a93b', fillOpacity: .7 }).bindPopup(`<b>${esc(x.category)}</b>${x.detail ? '<br>' + esc(x.detail) : ''}<br><span style="color:#8a8a95">${esc(x.where || '')} · ${ago(x.when)}</span>`).addTo(cLayers.r);
+  cLayers.p = L.layerGroup(); for (const x of (p.items || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#9aa6ff', weight: 0, fillColor: '#9aa6ff', fillOpacity: .7 }).bindPopup(() => pointPopup('Permit', '#9aa6ff', x.permit_type || x.kind, x.where, [x.holder, x.id, x.start ? (x.start + (x.end ? ' to ' + x.end : '')) : null]), { minWidth: 240 }).addTo(cLayers.p);
+  cLayers.r = L.layerGroup(); for (const x of (r.cases || [])) L.circleMarker([x.lat, x.lon], { radius: 3, color: '#f2a93b', weight: 0, fillColor: '#f2a93b', fillOpacity: .7 }).bindPopup(() => pointPopup('311 request', '#f2a93b', x.category, x.detail, [x.where, ago(x.when), x.status]), { minWidth: 240 }).addTo(cLayers.r);
   cLayers.c = L.layerGroup();
   const pts = [];
   for (const c of d.cameras.filter(c => c.lat)) {

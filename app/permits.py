@@ -47,6 +47,11 @@ def _toronto():
     return {"name": "Toronto RoDARS road restrictions", "attribution": "City of Toronto Open Data", "items": out}
 
 
+SF_TYPES = {"TempOccup": "Temporary street occupancy", "Excavation": "Excavation", "ExcStreet": "Street excavation",
+            "StrtImprov": "Street improvement", "Emergency": "Emergency work", "Sidewalk": "Sidewalk work",
+            "StorCont": "Storage container", "DebrisBox": "Debris box", "MinorEnc": "Minor encroachment"}
+
+
 def _san_francisco():
     types = "('Excavation','ExcStreet','StrtImprov','TempOccup','Emergency','Sidewalk','StorCont','DebrisBox')"
     rows = _fetch("https://data.sfgov.org/resource/b6tj-gt35.json",
@@ -59,10 +64,14 @@ def _san_francisco():
             lat, lon = float(r["latitude"]), float(r["longitude"])
         except (TypeError, ValueError, KeyError):
             continue
-        out.append({"id": r.get("permit_number"), "kind": r.get("permit_type"), "road": r.get("streetname"),
-                    "where": f"{r.get('streetname')} between {r.get('cross_street_1')} and {r.get('cross_street_2')}",
-                    "description": f"{r.get('permit_type')} permit, {r.get('status')}", "holder": r.get("agent"),
-                    "permit_type": r.get("permit_type"), "lat": lat, "lon": lon,
+        kind = SF_TYPES.get(r.get("permit_type"), r.get("permit_type"))
+        where = " ".join(w.capitalize() for w in f"{r.get('streetname') or ''}".split())
+        c1 = " ".join(w.capitalize() for w in (r.get("cross_street_1") or "").split())
+        c2 = " ".join(w.capitalize() for w in (r.get("cross_street_2") or "").split())
+        out.append({"id": r.get("permit_number"), "kind": kind, "road": where,
+                    "where": f"{where} between {c1} and {c2}" if c1 and c2 else where,
+                    "description": f"{kind} permit, {(r.get('status') or '').lower()}", "holder": r.get("agent"),
+                    "permit_type": kind, "lat": lat, "lon": lon,
                     "start": (r.get("approved_date") or "")[:10] or None, "end": None, "url": None})
     return {"name": "San Francisco street-use permits", "attribution": "DataSF", "items": out}
 
