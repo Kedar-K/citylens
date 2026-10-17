@@ -68,7 +68,7 @@ async function loadOverview() {
   for (const c of OV.cameras.filter(c => c.lat)) {
     const col = c.status === 'incident' ? '#ff4150' : c.status === 'busy' ? '#f2a93b' : '#c7c7cf';
     const m = L.circleMarker([c.lat, c.lon], { radius: 6, color: '#09090b', weight: 2, fillColor: col, fillOpacity: 1 }).addTo(camLayer);
-    m.bindPopup(() => `<b>${nice(c.camera_id)}</b><br><span style="color:#8a8a95">${esc(c.intersection)} · ${city(c.location)}</span><br>${c.status === 'incident' ? c.incidents + ' confirmed incident' + (c.incidents > 1 ? 's' : '') : c.status} · ${c.ratio ?? '–'}× normal${nearby311(c) != null ? '<br>' + nearby311(c) + ' 311 requests within 500 m' : ''}<br><a href="#" onclick="show(\'measure\');document.querySelector(\'#m-cam\').value=\'${c.camera_id}\';document.querySelector(\'#m-run\').click();return false">Open camera →</a>`);
+    m.bindPopup(() => camPopup(c, nearby311(c)), { minWidth: 260 });
     pts.push([c.lat, c.lon]);
   }
   if (pts.length) map.fitBounds(pts, { padding: [50, 90], maxZoom: 6 });
@@ -86,6 +86,12 @@ async function loadOverview() {
 }
 
 let layer311 = null, camLayer = null, CITYDATA = {};
+function camPopup(c, n311, nPermits) {
+  const load = c.ratio == null ? '' : c.ratio > 1.3 ? `busier than usual, ${c.ratio}× its normal` : c.ratio < 0.6 ? `quieter than usual, ${c.ratio}× its normal` : `normal load, ${c.ratio}× its normal`;
+  return `<div class="pop"><img src="${thumbUrl(c.latest_source)}" alt=""><div class="pt"><b>${nice(c.camera_id)}</b><span class="chip ${c.status}">${c.status}</span></div><div class="ps">${esc(c.intersection || '')} · ${city(c.location)}</div>
+  <div class="pk"><span>${c.minutes} min</span><span>${c.incidents} confirmed incident${c.incidents === 1 ? '' : 's'}</span>${n311 != null ? `<span>${n311} 311 requests nearby</span>` : ''}${nPermits != null ? `<span>${nPermits} permits nearby</span>` : ''}</div><div class="ps">${load}</div>
+  <a href="#" onclick="show('measure');document.querySelector('#m-cam').value='${c.camera_id}';document.querySelector('#m-run').click();return false">Open camera →</a></div>`;
+}
 function nearby311(c) {
   const d = CITYDATA[c.location]; if (!d || !d.cases) return null;
   const R = 6371000, toR = x => x * Math.PI / 180;
@@ -122,13 +128,38 @@ function draw311() {
 }
 $('#l311').onchange = draw311;
 
+/* ---------- bounding boxes ---------- */
+const BOXCOL = { person: '#f2a93b', car: '#7cc4ff', truck: '#c084fc', bus: '#5eead4', motorcycle: '#ff8fa3', bicycle: '#3ecf8e', 'traffic light': '#8a8a95' };
+const boxCache = {};
+async function toggleBoxes(card, on) {
+  const v = card.querySelector('video'); let cv = card.querySelector('canvas.boxes');
+  if (!on) { if (cv) cv.remove(); if (v._boxLoop) cancelAnimationFrame(v._boxLoop); v._boxLoop = null; return; }
+  const src = card.dataset.cur || card.dataset.src;
+  if (!boxCache[src]) { card.querySelector('.boxbtn').textContent = 'Loading boxes…'; try { boxCache[src] = await api('boxes?source=' + encodeURIComponent(src)); } catch (e) { toast('No boxes: ' + e.message); card.querySelector('.boxbtn').textContent = 'Boxes'; return; } card.querySelector('.boxbtn').textContent = 'Boxes'; }
+  const B = boxCache[src];
+  if (!cv) { cv = document.createElement('canvas'); cv.className = 'boxes'; card.querySelector('.v').appendChild(cv); }
+  cv.width = B.shape[1]; cv.height = B.shape[0];
+  const ctx = cv.getContext('2d'), byIdx = new Map(B.frames.map(f => [f.i, f.d]));
+  const draw = () => {
+    const i = Math.round(v.currentTime * B.fps); const k = i - (i % B.step); const dets = byIdx.get(k) || [];
+    ctx.clearRect(0, 0, cv.width, cv.height); ctx.lineWidth = 3; ctx.font = '600 26px Montserrat, sans-serif';
+    for (const [x1, y1, x2, y2, label, conf] of dets) {
+      const col = BOXCOL[label] || '#e4e4ea'; ctx.strokeStyle = col; ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      const t = `${label} ${Math.round(conf * 100)}`; const w = ctx.measureText(t).width + 14;
+      ctx.fillStyle = col; ctx.fillRect(x1, Math.max(0, y1 - 32), w, 32); ctx.fillStyle = '#09090b'; ctx.fillText(t, x1 + 7, Math.max(24, y1 - 8));
+    }
+    v._boxLoop = requestAnimationFrame(draw);
+  };
+  if (v._boxLoop) cancelAnimationFrame(v._boxLoop); draw(); if (v.paused) v.play().catch(() => {});
+}
+
 /* ---------- incidents ---------- */
 let RULES = [], CAMS = [];
 function incCard(i) {
   const st = i.status || 'candidate', v = i.verdict;
   const verdict = v == null ? `<div class="verdict none"><span class="who">Cosmos</span><div>Not verified yet. <span class="conf">Similarity ${(+i.similarity || 0).toFixed(2)}</span></div></div>`
     : `<div class="verdict ${v}"><span class="who">Cosmos ${v}</span><div>${esc(i.reason)} <span class="conf">· ${Math.round((i.confidence || 0) * 100)}% sure · match ${(+i.similarity || 0).toFixed(2)}</span></div></div>`;
-  const ctx = i.original_video ? `<div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div>` : '';
+  const ctx = (i.original_video ? `<div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div>` : '') + `<button class="btn sm ghost boxbtn">Boxes</button>`;
   const act = (st === 'confirmed' ? `<button class="btn sm act311" data-id="${i.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Create 311 case</button>` : '')
     + (v != null ? `<button class="btn sm ghost recheck" data-id="${i.id}" title="Ask Cosmos Reason again">Re-check</button>` : '');
   return `<div class="inc ${st}" data-src="${esc(i.source)}" data-chunk="${esc(i.original_video || '')}" data-start="${i.segment_start_sec ?? 0}"><div class="v"><video src="${clipUrl(i.source)}" poster="${thumbUrl(i.source)}" controls muted preload="none" loop playsinline></video><span class="chip ${st}">${st}</span><span class="when">at ${mmss(i.segment_start_sec)}</span></div>
@@ -144,9 +175,11 @@ function wireCards(root) {
   root.querySelectorAll('.ctx button').forEach(b => b.onclick = () => {
     const card = b.closest('.inc'), v = card.querySelector('video'), start = +card.dataset.start || 0;
     card.querySelectorAll('.ctx button').forEach(x => x.classList.toggle('on', x === b));
-    if (b.dataset.mode === 'chunk') { v.loop = false; v.src = clipUrl(card.dataset.chunk) + '#t=' + Math.max(0, start - 5); v.play(); }
-    else { v.loop = true; v.src = clipUrl(card.dataset.src); v.play(); }
+    toggleBoxes(card, false); card.querySelector('.boxbtn')?.classList.remove('on');
+    if (b.dataset.mode === 'chunk') { v.loop = false; card.dataset.cur = card.dataset.chunk; v.src = clipUrl(card.dataset.chunk) + '#t=' + Math.max(0, start - 5); v.play(); }
+    else { v.loop = true; card.dataset.cur = card.dataset.src; v.src = clipUrl(card.dataset.src); v.play(); }
   });
+  root.querySelectorAll('.boxbtn').forEach(b => b.onclick = () => { const card = b.closest('.inc'); const on = !b.classList.contains('on'); b.classList.toggle('on', on); toggleBoxes(card, on); });
   root.querySelectorAll('.recheck').forEach(b => b.onclick = async () => {
     b.disabled = true; b.textContent = 'Cosmos is watching…';
     try { const r = await post('verify/' + b.dataset.id, {}); const card = b.closest('.inc'); card.outerHTML = incCard(r); wireCards(root); toast(`Re-checked: Cosmos says ${r.verdict} · ${r.reason}`); }
@@ -254,7 +287,7 @@ $('#m-run').onclick = async () => {
   $('#m-moments').innerHTML = momentCard(m.peak.source, `Busiest minute · ${m.peak.rolling} vehicles per clip (${peakX}× normal)`, m.peak.original_video, m.peak.seg ? (m.peak.seg - 1) * 5 : 0) + momentCard(m.quiet.source, `Quietest minute · ${m.quiet.rolling} vehicles per clip`, m.quiet.original_video, m.quiet.seg ? (m.quiet.seg - 1) * 5 : 0);
   wireCards($('#m-moments'));
 };
-const momentCard = (src, t, chunk, start) => `<div class="inc" data-src="${esc(src)}" data-chunk="${esc(chunk || '')}" data-start="${start ?? 0}"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(t)}</div>${chunk ? '<div class="acts"><div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div></div>' : ''}</div></div>`;
+const momentCard = (src, t, chunk, start) => `<div class="inc" data-src="${esc(src)}" data-chunk="${esc(chunk || '')}" data-start="${start ?? 0}"><div class="v"><video src="${clipUrl(src)}" poster="${thumbUrl(src)}" controls muted preload="none" loop playsinline></video></div><div class="b"><div class="m">${esc(t)}</div><div class="acts">${chunk ? '<div class="ctx"><button class="on" data-mode="clip">5 s moment</button><button data-mode="chunk">30 s context</button></div>' : ''}<button class="btn sm ghost boxbtn">Boxes</button></div></div></div>`;
 
 /* ---------- system ---------- */
 async function loadSystem() {
@@ -301,7 +334,7 @@ async function openCity(loc) {
   for (const c of d.cameras.filter(c => c.lat)) {
     const col = c.status === 'incident' ? '#ff4150' : c.status === 'busy' ? '#f2a93b' : '#e4e4ea';
     const n = d.permits_near_cameras.find(x => x.camera_id === c.camera_id);
-    L.circleMarker([c.lat, c.lon], { radius: 8, color: '#09090b', weight: 2, fillColor: col, fillOpacity: 1 }).bindPopup(`<b>${nice(c.camera_id)}</b><br><span style="color:#8a8a95">${esc(c.intersection)}</span><br>${c.incidents} confirmed · ${c.ratio ?? '–'}× normal${n ? '<br>' + n.permits_near + ' permits within 400 m' : ''}<br><a href="#" onclick="show('measure');document.querySelector('#m-cam').value='${c.camera_id}';document.querySelector('#m-run').click();return false">Open camera →</a>`).addTo(cLayers.c);
+    L.circleMarker([c.lat, c.lon], { radius: 8, color: '#09090b', weight: 2, fillColor: col, fillOpacity: 1 }).bindPopup(() => camPopup(c, null, n ? n.permits_near : null), { minWidth: 260 }).addTo(cLayers.c);
     pts.push([c.lat, c.lon]);
   }
   if ($('#c-lperm').checked) cLayers.p.addTo(cmap); if ($('#c-l311').checked) cLayers.r.addTo(cmap); cLayers.c.addTo(cmap);

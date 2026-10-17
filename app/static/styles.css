@@ -172,3 +172,13 @@ button{font:inherit}
 .chip.permitted{background:var(--green-dim);color:var(--green);border-color:rgba(62,207,142,.22)}.chip.no_permit{background:var(--red-dim);color:var(--red2);border-color:rgba(229,32,47,.3)}.chip.no_location{background:var(--panel3);color:var(--muted)}
 .leaflet-permit{background:none;border:0}
 .chip.possible{background:var(--amber-dim);color:var(--amber);border-color:rgba(242,169,59,.25)}
+/* box overlay + popups */
+.inc .v{position:relative}.inc canvas.boxes{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.boxbtn.on{background:var(--panel3);border-color:var(--line2);color:var(--text)}
+.leaflet-popup-content{margin:0;width:auto!important}.leaflet-popup-content-wrapper{padding:0;overflow:hidden}
+.pop{width:260px;font-family:var(--ui);font-size:12.5px;color:var(--text)}.pop img{width:100%;height:120px;object-fit:cover;display:block;background:#000}
+.pop .pt{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px 2px}.pop .pt b{font-family:var(--display);font-size:13.5px}
+.pop .ps{color:var(--muted);padding:0 12px 6px;font-size:12px}
+.pop .pk{display:flex;flex-wrap:wrap;gap:6px;padding:2px 12px 8px}.pop .pk span{background:var(--panel3);border:1px solid var(--line2);border-radius:6px;padding:2px 8px;font-size:11.5px;color:var(--text2)}
+.pop a{display:block;padding:8px 12px 10px;border-top:1px solid var(--line);font-weight:600}
+.leaflet-container a.leaflet-popup-close-button{color:var(--muted)}

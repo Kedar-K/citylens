@@ -1,5 +1,6 @@
 """CityLens API. Serves the operator UI and the Detect / Investigate / Measure endpoints."""
 import concurrent.futures as cf
+import json
 import os
 import sys
 import threading
@@ -193,6 +194,48 @@ def city_view(location: str):
             "permits": {k: v for k, v in reg.items() if k != "items"} | {"count": len(items), "items": items[:2500]},
             "permits_near_cameras": near_cams, "triage": triage,
             "actions": [a for a in store.actions() if a.get("location") == location]}
+
+
+_boxes_cache = {}
+
+
+@app.get("/api/boxes")
+def boxes(source: str, step: int = 2):
+    """Per-frame YOLO boxes for a clip: the pipeline's stored sidecar when it exists, otherwise a fresh
+    YOLO11 pass on the GPU endpoint. Frames are subsampled (every `step`) to keep the payload small."""
+    key = (source, step)
+    if key in _boxes_cache:
+        return _boxes_cache[key]
+    frames, fps, shape, origin = None, 30.0, [1080, 1920], "sidecar"
+    try:
+        d = vss.detections(source)
+        frames, fps, shape = d.get("frames"), d.get("fps") or 30.0, d.get("video_shape") or shape
+    except Exception:
+        frames = None
+    if not frames:
+        import base64
+        origin = "yolo11 live"
+        clip = vss.fetch_clip(source)
+        body = {"video_base64": base64.b64encode(clip).decode(), "filename": "clip.mp4", "include_frames": True}
+        req = urllib.request.Request(os.environ.get("YOLO_URL", "http://166.19.38.112:8002") + "/v1/infer",
+                                     data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("GPU_BEARER_TOKEN", "")})
+        with urllib.request.urlopen(req, timeout=180) as r:
+            d = json.load(r)
+        frames = d.get("frames") or []
+        if frames and frames[0].get("shape"):
+            shape = frames[0]["shape"]
+    out_frames = []
+    for f in frames[::max(1, step)]:
+        out_frames.append({"i": f.get("frame_index", 0),
+                           "d": [[*(b.get("bbox") or [0, 0, 0, 0]), b.get("label"), round(b.get("confidence", 0), 2)]
+                                 for b in (f.get("detections") or []) if (b.get("confidence") or 0) >= 0.35]})
+    res = {"source": source, "origin": origin, "fps": fps, "shape": shape, "step": step, "frames": out_frames,
+           "classes": sorted({b[4] for f in out_frames for b in f["d"]})}
+    if len(_boxes_cache) > 300:
+        _boxes_cache.clear()
+    _boxes_cache[key] = res
+    return res
 
 
 @app.get("/api/thumb")
