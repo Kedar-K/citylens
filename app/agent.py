@@ -5,6 +5,7 @@ the caption index, the detections, and CityLens's own incident table.
 """
 import json
 import os
+import re
 import threading
 import time
 
@@ -17,9 +18,11 @@ SYSTEM = """You are CityLens, a traffic operations assistant for a city traffic 
 You answer operator questions about what the street cameras saw, using tools. Rules:
 - Always call a tool before answering; never guess. Prefer list_incidents for "anything wrong / blocked /
   incidents" questions, search_clips for "find / show me / was there", busiest_cameras for "worst congestion /
-  busiest", camera_stats for one camera vs its normal, city_summary for "what's happening in <city>",
+  busiest" across cameras, camera_stats for one camera (busiest or quietest minute, vs its normal), city_summary for "what's happening in <city>",
   permit_check for permits, construction, unpermitted work, and summarize_video for one video.
-- Answer in 2 to 5 short sentences for an operator. Name cameras by id and give times as segment offsets.
+- Answer in 2 to 5 short sentences for an operator. Name cameras by their friendly name from the catalogue
+  (e.g. "NYC Street 1"), and give times as "minute M of the recording". Use plain text, no markdown.
+- Call search_clips at most twice per question; if the first search is weak, refine once, then answer.
 - Cite evidence as clip references in the form [clip:<source>] so the UI can play them. Include at most 4.
 - If list_incidents returns an empty list, do not call it again: call search_clips once with a descriptive query
   and answer from the clips, saying no verified incident is on file.
@@ -56,7 +59,7 @@ TOOLS = [
             "rule_id": {"type": "string", "enum": [r["id"] for r in RULES]}}}}},
     {"type": "function", "function": {
         "name": "camera_stats",
-        "description": "Vehicle and pedestrian counts for a camera from YOLO detections, with that camera's own baseline.",
+        "description": "One camera's numbers from YOLO detections: its normal (baseline) vehicles per clip, its busiest minute and quietest minute (with playable source), and how the last minute compares to normal. Use for 'when was X busiest / quietest' or 'how busy is X'.",
         "parameters": {"type": "object", "properties": {
             "camera_id": {"type": "string", "description": "Omit to get a summary of every camera"}}}}},
     {"type": "function", "function": {
@@ -98,6 +101,20 @@ class Agent:
         lines = [f"- {c['camera_id']} ({NAMES.get(c['camera_id'], c['camera_id'])}), location={c['location']}, "
                  f"{c['capture_type']}, {c['minutes']} min indexed" for c in cams]
         return "Camera catalogue (id, name, location):\n" + "\n".join(lines)
+
+    @staticmethod
+    def _fix_clip_refs(text, sources):
+        """Normalise clip citations to [clip:<full s3 uri>] so the UI can always play them, even when the
+        model shortens the uri to a filename or uses other brackets."""
+        def fix(m):
+            ref = m.group(1).strip()
+            if ref.startswith("s3://"):
+                return f"[clip:{ref}]"
+            stem = ref.rsplit("/", 1)[-1].replace(".mp4", "")
+            hit = next((s for s in sources if stem and stem in s), None)
+            return f"[clip:{hit}]" if hit else ""
+        text = re.sub(r"[\[【]clip:([^\]】]+)[\]】]", fix, text)
+        return text.replace("**", "")
 
     def resolve_camera(self, text):
         """Map whatever the model passed (id, friendly name, city) to a real camera id or a location filter."""
@@ -223,6 +240,7 @@ class Agent:
         client = self._setup()
         messages = [{"role": "system", "content": SYSTEM.format(catalogue=self._catalogue())}] + (history or []) + [{"role": "user", "content": question}]
         trace, t0 = [], time.time()
+        sources = []
         for _ in range(max_steps):
             r = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOLS,
                                                temperature=0, max_tokens=700)
@@ -233,7 +251,8 @@ class Agent:
                 r = client.chat.completions.create(model=MODEL, messages=messages, temperature=0, max_tokens=700)
                 m = r.choices[0].message
             if not m.tool_calls:
-                return {"answer": (m.content or "").strip() or "I could not form an answer from the data I found. Try narrowing the question to a camera or city.", "trace": trace, "model": MODEL,
+                answer = self._fix_clip_refs((m.content or "").strip(), sources)
+                return {"answer": answer or "I could not form an answer from the data I found. Try narrowing the question to a camera or city.", "trace": trace, "model": MODEL,
                         "seconds": round(time.time() - t0, 1),
                         "weave_url": f"https://wandb.ai/{WEAVE_PROJECT}/weave" if WEAVE_PROJECT else None}
             messages.append({"role": "assistant", "content": m.content or "",
@@ -249,6 +268,7 @@ class Agent:
                     result = getattr(self, name)(**args)
                 except Exception as e:
                     result = {"error": str(e)}
+                sources += re.findall(r"s3://[^\s\"',\]】]+\.mp4", json.dumps(result))
                 trace.append({"tool": name, "args": args, "seconds": round(time.time() - t1, 2),
                               "result_preview": json.dumps(result)[:300]})
                 messages.append({"role": "tool", "tool_call_id": tc.id, "name": name,
